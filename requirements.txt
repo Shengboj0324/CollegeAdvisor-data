@@ -14,7 +14,7 @@ asyncio-throttle>=1.0.2
 
 # Data processing
 nltk>=3.8.1
-spacy>=3.7.0
+# spacy>=3.7.0  # Temporarily disabled due to compilation issues
 scikit-learn>=1.3.0
 
 # Evaluation and monitoring

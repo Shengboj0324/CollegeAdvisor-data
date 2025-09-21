@@ -8,6 +8,8 @@ from typing import Optional
 from .config import config
 from .ingestion.pipeline import IngestionPipeline
 from .storage.chroma_client import ChromaDBClient
+from .evaluation.metrics import EvaluationMetrics
+from .evaluation.coverage import CoverageAnalyzer
 
 
 def setup_logging():
@@ -125,18 +127,119 @@ def status(collection: Optional[str]):
 
 
 @main.command()
+@click.option('--collection', '-c', default=None, help='ChromaDB collection name')
+@click.option('--save-report', '-s', default=None, help='Path to save evaluation report')
+def evaluate(collection: Optional[str], save_report: Optional[str]):
+    """Evaluate pipeline quality and data coverage."""
+    collection_name = collection or config.chroma_collection_name
+    click.echo(f"🔍 Evaluating pipeline for collection: {collection_name}")
+
+    evaluator = EvaluationMetrics()
+    try:
+        report = evaluator.generate_evaluation_report(
+            collection_name,
+            Path(save_report) if save_report else None
+        )
+
+        # Display summary
+        click.echo(f"\n📊 Evaluation Results:")
+        click.echo(f"Overall Score: {report['metrics'].get('overall_score', 0):.2f}/1.00")
+
+        for category, metrics in report['metrics'].items():
+            if isinstance(metrics, dict) and 'score' in metrics:
+                score = metrics['score']
+                status = "✅" if score >= 0.7 else "⚠️" if score >= 0.5 else "❌"
+                click.echo(f"{status} {category.replace('_', ' ').title()}: {score:.2f}")
+
+        # Show recommendations
+        if report.get('recommendations'):
+            click.echo(f"\n💡 Recommendations:")
+            for rec in report['recommendations']:
+                click.echo(f"  • {rec}")
+
+        if save_report:
+            click.echo(f"\n📄 Full report saved to: {save_report}")
+
+    except Exception as e:
+        click.echo(f"❌ Evaluation failed: {e}", err=True)
+        raise click.Abort()
+
+
+@main.command()
+@click.option('--collection', '-c', default=None, help='ChromaDB collection name')
+def coverage(collection: Optional[str]):
+    """Analyze data coverage across different dimensions."""
+    collection_name = collection or config.chroma_collection_name
+    click.echo(f"📈 Analyzing coverage for collection: {collection_name}")
+
+    analyzer = CoverageAnalyzer()
+    try:
+        analysis = analyzer.analyze_comprehensive_coverage(collection_name)
+
+        click.echo(f"\n📊 Coverage Analysis Results:")
+        click.echo(f"Overall Coverage Score: {analysis.get('overall_coverage_score', 0):.2f}/1.00")
+
+        # Display key metrics
+        for category, metrics in analysis.items():
+            if isinstance(metrics, dict) and 'coverage_score' in metrics:
+                score = metrics['coverage_score']
+                status = "✅" if score >= 0.7 else "⚠️" if score >= 0.5 else "❌"
+                click.echo(f"{status} {category.replace('_', ' ').title()}: {score:.2f}")
+
+                # Show specific details
+                if category == 'university_coverage':
+                    click.echo(f"    Universities: {metrics.get('total_universities', 0)}")
+                elif category == 'geographic_coverage':
+                    click.echo(f"    States: {metrics.get('states_covered', 0)}/50")
+                elif category == 'subject_coverage':
+                    click.echo(f"    Subject Areas: {metrics.get('total_subject_areas', 0)}")
+
+    except Exception as e:
+        click.echo(f"❌ Coverage analysis failed: {e}", err=True)
+        raise click.Abort()
+
+
+@main.command()
+def health():
+    """Check health of all pipeline components."""
+    click.echo("🏥 Checking pipeline health...")
+
+    pipeline = IngestionPipeline()
+    try:
+        health_status = pipeline.health_check()
+
+        overall_status = health_status.get("pipeline", "unknown")
+        status_icon = "✅" if overall_status == "healthy" else "❌"
+        click.echo(f"\n{status_icon} Overall Pipeline Status: {overall_status}")
+
+        # Check individual components
+        components = health_status.get("components", {})
+        for component, status in components.items():
+            component_status = status.get("status", "unknown")
+            component_icon = "✅" if component_status == "healthy" else "❌"
+            click.echo(f"{component_icon} {component.title()}: {component_status}")
+
+            if component_status != "healthy" and "error" in status:
+                click.echo(f"    Error: {status['error']}")
+
+    except Exception as e:
+        click.echo(f"❌ Health check failed: {e}", err=True)
+        raise click.Abort()
+
+
+@main.command()
 def init():
     """Initialize the data pipeline environment."""
     click.echo("🚀 Initializing College Advisor Data Pipeline")
-    
+
     # Create directories
     config.data_dir.mkdir(parents=True, exist_ok=True)
     config.processed_dir.mkdir(parents=True, exist_ok=True)
     config.cache_dir.mkdir(parents=True, exist_ok=True)
-    
+
     if config.log_file:
         config.log_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Create .env file if it doesn't exist
     env_file = Path(".env")
     if not env_file.exists():
@@ -144,12 +247,14 @@ def init():
         if env_example.exists():
             env_file.write_text(env_example.read_text())
             click.echo("📝 Created .env file from .env.example")
-    
+
     click.echo("✅ Pipeline initialized successfully!")
     click.echo("\nNext steps:")
     click.echo("1. Edit .env file with your configuration")
     click.echo("2. Add seed data to data/seed/ directory")
     click.echo("3. Run: college-data ingest --source data/seed/universities.csv --doc-type university")
+    click.echo("4. Run: college-data health  # Check component health")
+    click.echo("5. Run: college-data evaluate  # Evaluate pipeline quality")
 
 
 if __name__ == "__main__":
