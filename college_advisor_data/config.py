@@ -3,47 +3,79 @@
 import os
 from pathlib import Path
 from typing import Optional
-from pydantic import Field
-from pydantic_settings import BaseSettings
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 
-class Config(BaseSettings):
+class Config:
     """Configuration settings for the data pipeline."""
-    
-    # ChromaDB Configuration
-    chroma_host: str = Field(default="localhost", env="CHROMA_HOST")
-    chroma_port: int = Field(default=8000, env="CHROMA_PORT")
-    chroma_collection_name: str = Field(default="college_advisor", env="CHROMA_COLLECTION_NAME")
-    chroma_cloud_host: Optional[str] = Field(default=None, env="CHROMA_CLOUD_HOST")
-    chroma_cloud_api_key: Optional[str] = Field(default=None, env="CHROMA_CLOUD_API_KEY")
-    
-    # Embedding Configuration
-    embedding_model: str = Field(default="all-MiniLM-L6-v2", env="EMBEDDING_MODEL")
-    embedding_provider: str = Field(default="sentence_transformers", env="EMBEDDING_PROVIDER")
-    
-    # Ollama Configuration
-    ollama_host: str = Field(default="http://localhost:11434", env="OLLAMA_HOST")
-    ollama_embedding_model: str = Field(default="nomic-embed-text", env="OLLAMA_EMBEDDING_MODEL")
-    
-    # Directory Configuration
-    data_dir: Path = Field(default=Path("./data"), env="DATA_DIR")
-    processed_dir: Path = Field(default=Path("./processed"), env="PROCESSED_DIR")
-    cache_dir: Path = Field(default=Path("./cache"), env="CACHE_DIR")
-    
-    # Processing Configuration
-    chunk_size: int = Field(default=800, env="CHUNK_SIZE")
-    chunk_overlap: int = Field(default=100, env="CHUNK_OVERLAP")
-    batch_size: int = Field(default=100, env="BATCH_SIZE")
-    
-    # Logging Configuration
-    log_level: str = Field(default="INFO", env="LOG_LEVEL")
-    log_file: Optional[Path] = Field(default=Path("./logs/pipeline.log"), env="LOG_FILE")
-    
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-    
-    def __post_init__(self):
+
+    def __init__(self):
+        # ChromaDB Configuration
+        self.chroma_host = os.getenv("CHROMA_HOST", "localhost")
+        self.chroma_port = int(os.getenv("CHROMA_PORT", "8000"))
+        self.chroma_collection_name = os.getenv("CHROMA_COLLECTION_NAME", "college_advisor")
+        self.chroma_cloud_host = os.getenv("CHROMA_CLOUD_HOST")
+        self.chroma_cloud_api_key = os.getenv("CHROMA_CLOUD_API_KEY")
+
+        # Embedding Configuration
+        self.embedding_model = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+        self.embedding_provider = os.getenv("EMBEDDING_PROVIDER", "sentence_transformers")
+
+        # Ollama Configuration
+        self.ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        self.ollama_embedding_model = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
+
+        # Directory Configuration
+        self.data_dir = Path(os.getenv("DATA_DIR", "./data"))
+        self.processed_dir = Path(os.getenv("PROCESSED_DIR", "./processed"))
+        self.cache_dir = Path(os.getenv("CACHE_DIR", "./cache"))
+
+        # Processing Configuration
+        self.chunk_size = int(os.getenv("CHUNK_SIZE", "800"))
+        self.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "100"))
+        self.batch_size = int(os.getenv("BATCH_SIZE", "100"))
+
+        # Data Collection Configuration
+        self.college_scorecard_api_key = os.getenv("COLLEGE_SCORECARD_API_KEY", "DEMO_KEY")
+        self.ipeds_api_key = os.getenv("IPEDS_API_KEY")
+
+        # Rate Limiting Configuration
+        self.default_requests_per_second = float(os.getenv("DEFAULT_REQUESTS_PER_SECOND", "1.0"))
+        self.default_requests_per_minute = int(os.getenv("DEFAULT_REQUESTS_PER_MINUTE", "60"))
+        self.default_requests_per_hour = int(os.getenv("DEFAULT_REQUESTS_PER_HOUR", "1000"))
+
+        # Web Scraping Configuration
+        self.user_agent = os.getenv("USER_AGENT", "CollegeAdvisor-Bot/1.0")
+        self.scraping_delay = float(os.getenv("SCRAPING_DELAY", "1.0"))
+        self.max_concurrent_requests = int(os.getenv("MAX_CONCURRENT_REQUESTS", "10"))
+
+        # Social Media API Keys
+        self.twitter_bearer_token = os.getenv("TWITTER_BEARER_TOKEN")
+        self.reddit_client_id = os.getenv("REDDIT_CLIENT_ID")
+        self.reddit_client_secret = os.getenv("REDDIT_CLIENT_SECRET")
+        self.youtube_api_key = os.getenv("YOUTUBE_API_KEY")
+
+        # Data Quality Configuration
+        self.min_content_length = int(os.getenv("MIN_CONTENT_LENGTH", "50"))
+        self.max_content_length = int(os.getenv("MAX_CONTENT_LENGTH", "50000"))
+        self.quality_threshold = float(os.getenv("QUALITY_THRESHOLD", "0.7"))
+
+        # Pipeline Configuration
+        self.enable_real_time_processing = os.getenv("ENABLE_REAL_TIME_PROCESSING", "false").lower() == "true"
+        self.enable_data_validation = os.getenv("ENABLE_DATA_VALIDATION", "true").lower() == "true"
+        self.enable_synthetic_data = os.getenv("ENABLE_SYNTHETIC_DATA", "false").lower() == "true"
+
+        # Logging Configuration
+        self.log_level = os.getenv("LOG_LEVEL", "INFO")
+        log_file_path = os.getenv("LOG_FILE", "./logs/pipeline.log")
+        self.log_file = Path(log_file_path) if log_file_path else None
+
+        # Create necessary directories
+        self._create_directories()
+
+    def _create_directories(self):
         """Create necessary directories."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.processed_dir.mkdir(parents=True, exist_ok=True)

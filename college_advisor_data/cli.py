@@ -2,14 +2,14 @@
 
 import click
 import logging
+import sys
 from pathlib import Path
 from typing import Optional
 
+# Add collectors to path
+sys.path.append(str(Path(__file__).parent.parent))
+
 from .config import config
-from .ingestion.pipeline import IngestionPipeline
-from .storage.chroma_client import ChromaDBClient
-from .evaluation.metrics import EvaluationMetrics
-from .evaluation.coverage import CoverageAnalyzer
 
 
 def setup_logging():
@@ -34,19 +34,126 @@ def main(verbose: bool):
 
 
 @main.command()
-@click.option('--source', '-s', required=True, help='Source data file or directory')
-@click.option('--format', '-f', type=click.Choice(['csv', 'json', 'txt']), default='csv', help='Input format')
-@click.option('--doc-type', '-t', type=click.Choice(['university', 'program', 'summer_program']), required=True, help='Document type')
-def ingest(source: str, format: str, doc_type: str):
-    """Ingest data from source files."""
-    click.echo(f"Ingesting {doc_type} data from {source} (format: {format})")
-    
-    pipeline = IngestionPipeline()
+@click.option('--collector', '-c', type=click.Choice(['scorecard', 'ipeds', 'cds']), default='scorecard', help='Data collector to use')
+@click.option('--years', '-y', help='Years to collect (comma-separated)')
+@click.option('--states', '-s', help='States to collect (comma-separated)')
+@click.option('--field-groups', '-f', help='Field groups to collect (comma-separated)')
+@click.option('--page-size', '-p', type=int, default=20, help='Page size for API requests')
+def collect(collector: str, years: Optional[str], states: Optional[str], field_groups: Optional[str], page_size: int):
+    """Collect data from external sources."""
+    click.echo(f"🔄 Starting data collection with {collector} collector...")
+
     try:
-        stats = pipeline.ingest_from_file(Path(source), format, doc_type)
-        click.echo(f"✅ Ingested {stats.total_documents} documents, {stats.total_chunks} chunks")
+        if collector == 'scorecard':
+            from collectors.base_collector import CollectorConfig
+            from collectors.government import CollegeScorecardCollector
+
+            # Create collector configuration
+            collector_config = CollectorConfig(
+                api_key=config.college_scorecard_api_key,
+                requests_per_second=config.default_requests_per_second,
+                cache_enabled=True,
+                cache_ttl_hours=24,
+                output_format="json"
+            )
+
+            # Initialize collector
+            data_collector = CollegeScorecardCollector(collector_config)
+
+            # Parse parameters
+            years_list = [int(y.strip()) for y in years.split(',')] if years else [2021]
+            states_list = [s.strip().upper() for s in states.split(',')] if states else None
+            field_groups_list = [f.strip() for f in field_groups.split(',')] if field_groups else ["basic"]
+
+            # Collect data
+            result = data_collector.collect(
+                years=years_list,
+                states=states_list,
+                field_groups=field_groups_list,
+                page_size=page_size
+            )
+
+            click.echo(f"✅ Collection completed!")
+            click.echo(f"   Records collected: {result.total_records}")
+            click.echo(f"   Processing time: {result.processing_time:.2f} seconds")
+            click.echo(f"   API calls made: {result.api_calls}")
+
+        else:
+            click.echo(f"❌ Collector '{collector}' not yet implemented")
+
     except Exception as e:
-        click.echo(f"❌ Ingestion failed: {e}", err=True)
+        click.echo(f"❌ Collection failed: {e}", err=True)
+        raise click.Abort()
+
+
+@main.command()
+@click.option('--collector', '-c', type=click.Choice(['scorecard', 'ipeds', 'cds']), required=True, help='Data collector to use')
+@click.option('--years', '-y', help='Years to collect (comma-separated, e.g., 2022,2023)')
+@click.option('--states', '-s', help='States to filter by (comma-separated, e.g., CA,NY,TX)')
+@click.option('--field-groups', '-f', help='Field groups to collect (comma-separated)')
+@click.option('--output', '-o', help='Output directory for collected data')
+def collect(collector: str, years: Optional[str], states: Optional[str], field_groups: Optional[str], output: Optional[str]):
+    """Collect data from external sources."""
+    click.echo(f"🔄 Starting data collection with {collector} collector")
+
+    try:
+        # Import collectors
+        import sys
+        sys.path.append('.')
+        from collectors.base_collector import CollectorConfig
+        from collectors.government import CollegeScorecardCollector
+
+        # Parse parameters
+        years_list = [int(y.strip()) for y in years.split(',')] if years else None
+        states_list = [s.strip().upper() for s in states.split(',')] if states else None
+        field_groups_list = [f.strip() for f in field_groups.split(',')] if field_groups else None
+
+        # Create collector configuration
+        collector_config = CollectorConfig(
+            api_key=config.college_scorecard_api_key,
+            requests_per_second=config.default_requests_per_second,
+            cache_enabled=True,
+            output_format="json"
+        )
+
+        # Initialize collector
+        if collector == 'scorecard':
+            data_collector = CollegeScorecardCollector(collector_config)
+        else:
+            click.echo(f"❌ Collector '{collector}' not yet implemented")
+            raise click.Abort()
+
+        # Show source information
+        source_info = data_collector.get_source_info()
+        click.echo(f"📊 Data Source: {source_info['name']}")
+        click.echo(f"   Provider: {source_info['provider']}")
+        click.echo(f"   Description: {source_info['description']}")
+
+        # Run collection
+        result = data_collector.collect(
+            years=years_list,
+            states=states_list,
+            field_groups=field_groups_list
+        )
+
+        # Display results
+        click.echo(f"\n✅ Collection completed!")
+        click.echo(f"   Total records: {result.total_records}")
+        click.echo(f"   Successful: {result.successful_records}")
+        click.echo(f"   Failed: {result.failed_records}")
+        click.echo(f"   Success rate: {result.success_rate:.1%}")
+        click.echo(f"   Duration: {result.duration}")
+
+        if result.errors:
+            click.echo(f"\n⚠️  Errors encountered:")
+            for error in result.errors:
+                click.echo(f"   - {error}")
+
+        if result.metadata.get("output_file"):
+            click.echo(f"\n💾 Data saved to: {result.metadata['output_file']}")
+
+    except Exception as e:
+        click.echo(f"❌ Collection failed: {e}", err=True)
         raise click.Abort()
 
 
