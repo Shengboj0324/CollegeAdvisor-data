@@ -1,25 +1,58 @@
 # Core dependencies for data processing pipeline
-chromadb>=0.4.15
-sentence-transformers>=2.2.2
+requests>=2.31.0
 pandas>=2.0.0
 numpy>=1.24.0
-requests>=2.31.0
-beautifulsoup4>=4.12.0
 python-dotenv>=1.0.0
 click>=8.1.0
-tqdm>=4.65.0
 pydantic>=2.0.0
+
+# Data processing and storage
+chromadb>=0.4.15
+sentence-transformers>=2.2.2
+
+# Web scraping and APIs
+beautifulsoup4>=4.12.0
 aiohttp>=3.8.0
 asyncio-throttle>=1.0.2
 
+# Machine learning and AI
+scikit-learn>=1.3.0
+torch>=2.0.0
+transformers>=4.30.0
+openai>=1.0.0
+
+# Data validation and quality
+great-expectations>=0.17.0
+pandera>=0.17.0
+
+# Evaluation and metrics - pinned versions to avoid conflicts
+ragas==0.1.0
+langchain==0.3.27
+langchain-core==0.3.76
+langchain-community==0.3.29
+langchain-openai==0.3.33
+langchain-text-splitters==0.3.11
+langsmith==0.4.30
+
+# Supporting packages for ragas/langchain
+datasets>=4.1.0
+tiktoken>=0.11.0
+nest-asyncio>=1.6.0
+pysbd>=0.3.4
+appdirs>=1.4.4
+xxhash>=3.5.0
+pyarrow>=21.0.0
+multiprocess>=0.70.16
+dill>=0.3.0
+jsonpatch>=1.33
+jsonpointer>=1.9
+orjson>=3.9.14
+zstandard>=0.23.0
+requests-toolbelt>=1.0.0
+jiter>=0.4.0
+
 # Data processing
 nltk>=3.8.1
-# spacy>=3.7.0  # Temporarily disabled due to compilation issues
-scikit-learn>=1.3.0
-
-# Evaluation and monitoring
-ragas>=0.1.0
-langchain>=0.1.0
 
 # Development and testing
 pytest>=7.4.0
@@ -28,5 +61,26 @@ black>=23.0.0
 flake8>=6.0.0
 mypy>=1.5.0
 
-# Optional: Ollama integration for embeddings
-ollama>=0.1.0
+# Additional utilities
+tqdm>=4.65.0
+rich>=13.5.0
+typer>=0.9.0
+
+# Social media APIs
+tweepy>=4.14.0
+praw>=7.7.0
+
+# Web scraping
+selenium>=4.15.0
+
+# Documentation
+sphinx>=7.1.0
+sphinx-rtd-theme>=1.3.0
+
+# Monitoring and logging
+structlog>=23.1.0
+prometheus-client>=0.17.0
+
+# Pipeline orchestration
+prefect>=2.10.0
+dask>=2023.8.0

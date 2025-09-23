@@ -135,14 +135,17 @@ class CollegeScorecardCollector(BaseCollector):
             # Collect data for each year
             all_data = []
             years = years or [datetime.now().year - 1]  # Default to previous year
-            
+            total_api_calls = 0
+
             for year in years:
                 logger.info(f"Collecting College Scorecard data for {year}")
-                year_data = self._collect_year_data(year, fields, states, page_size)
+                year_data, api_calls = self._collect_year_data(year, fields, states, page_size)
                 all_data.extend(year_data)
+                total_api_calls += api_calls
                 result.successful_records += len(year_data)
-            
+
             result.total_records = len(all_data)
+            result.api_calls = total_api_calls
             result.metadata = {
                 "years_collected": years,
                 "field_groups": field_groups,
@@ -170,10 +173,11 @@ class CollegeScorecardCollector(BaseCollector):
                           year: int,
                           fields: List[str],
                           states: Optional[List[str]],
-                          page_size: int) -> List[Dict[str, Any]]:
+                          page_size: int) -> tuple[List[Dict[str, Any]], int]:
         """Collect data for a specific year."""
         all_records = []
         page = 0
+        api_calls = 0
 
         # Limit page size for DEMO_KEY to avoid rate limits
         if self.api_key == "DEMO_KEY":
@@ -206,6 +210,7 @@ class CollegeScorecardCollector(BaseCollector):
                 try:
                     logger.info(f"Requesting page {page} with {len(fields)} fields...")
                     response = self.session.get(self.BASE_URL, params=params)
+                    api_calls += 1
 
                     if response.status_code == 429:
                         logger.error("Rate limit exceeded. Please get a production API key from https://api.data.gov/signup/")
@@ -254,7 +259,7 @@ class CollegeScorecardCollector(BaseCollector):
                 logger.warning("Stopping at page 2 due to DEMO_KEY rate limits")
                 break
 
-        return all_records
+        return all_records, api_calls
     
     def _save_data(self, data: List[Dict[str, Any]], output_path: Path) -> None:
         """Save collected data to file."""

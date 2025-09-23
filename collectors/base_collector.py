@@ -65,6 +65,7 @@ class CollectionResult:
     total_records: int = 0
     successful_records: int = 0
     failed_records: int = 0
+    api_calls: int = 0
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     start_time: datetime = field(default_factory=datetime.utcnow)
@@ -76,6 +77,14 @@ class CollectionResult:
         """Calculate collection duration."""
         if self.end_time:
             return self.end_time - self.start_time
+        return None
+
+    @property
+    def processing_time(self) -> Optional[float]:
+        """Calculate processing time in seconds."""
+        duration = self.duration
+        if duration:
+            return duration.total_seconds()
         return None
     
     @property
