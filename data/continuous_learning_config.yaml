@@ -1,0 +1,11 @@
+a_b_testing_enabled: true
+champion_challenger_ratio: 0.8
+drift_threshold: 0.1
+evaluation_metrics:
+- accuracy
+- precision
+- recall
+- f1
+min_training_samples: 1000
+performance_threshold: 0.85
+retraining_schedule: 0 2 * * 0

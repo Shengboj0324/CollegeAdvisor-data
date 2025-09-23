@@ -1,0 +1,8 @@
+initialized_at: '2025-09-23T00:15:23.218732'
+name: Training Data Pipeline
+supported_models:
+- recommendation
+- personalization
+- search_ranking
+- content_generation
+version: 1.0.0

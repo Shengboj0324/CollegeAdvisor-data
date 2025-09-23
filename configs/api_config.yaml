@@ -1,0 +1,89 @@
+# API Configuration for CollegeAdvisor Data Pipeline
+# This file configures API endpoints and webhook URLs for data collection
+
+api_endpoints:
+  # Main CollegeAdvisor API endpoint
+  college_advisor_api: "http://localhost:8000"
+  
+  # Authentication events webhook
+  auth_events_webhook: "http://localhost:8000/webhooks/auth-events"
+  
+  # User behavior data webhook
+  user_behavior_webhook: "http://localhost:8000/webhooks/user-behavior"
+  
+  # Data quality alerts webhook
+  data_quality_webhook: "http://localhost:8000/webhooks/data-quality"
+  
+  # Model performance webhook
+  model_performance_webhook: "http://localhost:8000/webhooks/model-performance"
+
+# API Configuration
+api_settings:
+  # Request timeout in seconds
+  timeout: 30
+  
+  # Maximum retries for failed requests
+  max_retries: 3
+  
+  # Retry delay in seconds
+  retry_delay: 5
+  
+  # Rate limiting
+  rate_limit_requests: 100
+  rate_limit_window: 60  # seconds
+  
+  # Authentication
+  api_key_header: "X-API-Key"
+  api_key: "${COLLEGE_ADVISOR_API_KEY}"
+
+# Webhook Configuration
+webhooks:
+  # Enable/disable webhooks
+  enabled: true
+  
+  # Webhook authentication
+  auth_token: "${WEBHOOK_AUTH_TOKEN}"
+  
+  # Webhook retry configuration
+  max_retries: 5
+  retry_delay: 10
+  
+  # Webhook timeout
+  timeout: 15
+
+# Data Collection Endpoints
+data_collection:
+  # Authentication data
+  auth_events: "/api/v1/data/auth-events"
+  security_events: "/api/v1/data/security-events"
+  phone_verification: "/api/v1/data/phone-verification"
+  social_auth: "/api/v1/data/social-auth"
+  user_profiles: "/api/v1/data/user-profiles"
+  
+  # User behavior data
+  user_interactions: "/api/v1/data/user-interactions"
+  engagement_metrics: "/api/v1/data/engagement-metrics"
+  preference_data: "/api/v1/data/preferences"
+  
+  # Training data endpoints
+  training_data: "/api/v1/training-data"
+  model_feedback: "/api/v1/model-feedback"
+  
+  # Quality monitoring
+  quality_reports: "/api/v1/quality-reports"
+  quality_alerts: "/api/v1/quality-alerts"
+
+# Environment-specific overrides
+environments:
+  development:
+    college_advisor_api: "http://localhost:8000"
+    debug: true
+    
+  staging:
+    college_advisor_api: "https://staging-api.collegeadvisor.com"
+    debug: false
+    
+  production:
+    college_advisor_api: "https://api.collegeadvisor.com"
+    debug: false
+    rate_limit_requests: 1000

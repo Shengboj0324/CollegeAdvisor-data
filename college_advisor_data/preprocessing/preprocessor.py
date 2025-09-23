@@ -130,8 +130,8 @@ class TextPreprocessor:
         text = re.sub(r'[.]{3,}', '...', text)
         
         # Clean up quotes
-        text = re.sub(r'[""]', '"', text)
-        text = re.sub(r'['']', "'", text)
+        text = re.sub(r'["""]', '"', text)
+        text = re.sub(r"['']", "'", text)
         
         return text.strip()
     

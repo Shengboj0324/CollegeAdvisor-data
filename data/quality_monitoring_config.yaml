@@ -1,0 +1,12 @@
+alert_channels:
+- email
+- webhook
+baseline_update_frequency: daily
+monitoring_schedule: '*/15 * * * *'
+quality_thresholds:
+  accuracy: 0.85
+  completeness: 0.95
+  consistency: 0.9
+  timeliness: 0.9
+  uniqueness: 0.98
+  validity: 0.95

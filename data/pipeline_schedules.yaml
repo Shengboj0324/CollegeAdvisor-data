@@ -1,0 +1,17 @@
+continuous_learning:
+  drift_detection: 0 */2 * * *
+  model_retraining: 0 2 * * 0
+  performance_monitoring: '*/10 * * * *'
+data_collection:
+  authentication_events: '*/5 * * * *'
+  government_data: 0 1 * * *
+  social_media: '*/30 * * * *'
+  web_scraping: 0 */6 * * *
+data_processing:
+  feature_engineering: 0 4 * * *
+  model_evaluation: 0 5 * * 0
+  training_data_generation: 0 3 * * *
+quality_monitoring:
+  anomaly_detection: '*/30 * * * *'
+  data_quality_check: '*/15 * * * *'
+  quality_reporting: 0 6 * * *

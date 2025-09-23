@@ -1,0 +1,120 @@
+# Database Configuration for CollegeAdvisor Data Pipeline
+# This file configures database connections for analytics and data storage
+
+databases:
+  # Main analytics database
+  analytics_db:
+    host: "${DB_HOST:-localhost}"
+    port: "${DB_PORT:-5432}"
+    database: "${DB_NAME:-college_advisor_analytics}"
+    username: "${DB_USERNAME:-analytics_user}"
+    password: "${DB_PASSWORD:-your_password}"
+    driver: "postgresql"
+    pool_size: 10
+    max_overflow: 20
+    pool_timeout: 30
+    pool_recycle: 3600
+    
+  # ChromaDB configuration
+  chroma_db:
+    host: "${CHROMA_HOST:-localhost}"
+    port: "${CHROMA_PORT:-8000}"
+    collection_name: "${CHROMA_COLLECTION:-college_advisor}"
+    persist_directory: "${CHROMA_PERSIST_DIR:-./chroma_data}"
+    
+  # Redis for caching
+  redis_cache:
+    host: "${REDIS_HOST:-localhost}"
+    port: "${REDIS_PORT:-6379}"
+    database: "${REDIS_DB:-0}"
+    password: "${REDIS_PASSWORD:-}"
+    max_connections: 20
+    
+  # MongoDB for document storage
+  mongodb:
+    host: "${MONGO_HOST:-localhost}"
+    port: "${MONGO_PORT:-27017}"
+    database: "${MONGO_DB:-college_advisor_docs}"
+    username: "${MONGO_USERNAME:-}"
+    password: "${MONGO_PASSWORD:-}"
+    auth_source: "${MONGO_AUTH_SOURCE:-admin}"
+
+# Connection pools and settings
+connection_settings:
+  # PostgreSQL settings
+  postgresql:
+    connect_timeout: 10
+    command_timeout: 30
+    server_settings:
+      application_name: "CollegeAdvisor-Data"
+      
+  # ChromaDB settings
+  chromadb:
+    timeout: 30
+    max_batch_size: 1000
+    
+  # Redis settings
+  redis:
+    socket_timeout: 5
+    socket_connect_timeout: 5
+    health_check_interval: 30
+    
+  # MongoDB settings
+  mongodb:
+    connect_timeout: 10000
+    server_selection_timeout: 5000
+    max_pool_size: 100
+
+# Environment-specific database configurations
+environments:
+  development:
+    analytics_db:
+      host: "localhost"
+      database: "college_advisor_dev"
+      debug: true
+      
+  testing:
+    analytics_db:
+      host: "localhost"
+      database: "college_advisor_test"
+      pool_size: 5
+      
+  staging:
+    analytics_db:
+      host: "${STAGING_DB_HOST}"
+      database: "college_advisor_staging"
+      ssl_mode: "require"
+      
+  production:
+    analytics_db:
+      host: "${PROD_DB_HOST}"
+      database: "college_advisor_prod"
+      ssl_mode: "require"
+      pool_size: 20
+      max_overflow: 50
+
+# Database migration settings
+migrations:
+  directory: "migrations"
+  table_name: "alembic_version"
+  auto_upgrade: false
+  
+# Backup settings
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention_days: 30
+  s3_bucket: "${BACKUP_S3_BUCKET}"
+  
+# Monitoring and health checks
+monitoring:
+  health_check_interval: 60  # seconds
+  slow_query_threshold: 5000  # milliseconds
+  connection_pool_alerts: true
+  
+# Security settings
+security:
+  ssl_required: false
+  certificate_path: "${SSL_CERT_PATH}"
+  key_path: "${SSL_KEY_PATH}"
+  ca_path: "${SSL_CA_PATH}"
