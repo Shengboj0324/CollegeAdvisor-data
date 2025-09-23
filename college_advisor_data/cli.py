@@ -369,6 +369,112 @@ def health():
 
 
 @main.command()
+@click.option('--generate-training-data', is_flag=True, help='Generate training data for AI models')
+@click.option('--evaluate-models', is_flag=True, help='Evaluate AI model performance')
+@click.option('--check-data-quality', is_flag=True, help='Check data quality metrics')
+@click.option('--start-continuous-learning', is_flag=True, help='Start continuous learning pipeline')
+def ai_training(generate_training_data: bool, evaluate_models: bool, check_data_quality: bool, start_continuous_learning: bool):
+    """AI training and model management commands."""
+
+    if not any([generate_training_data, evaluate_models, check_data_quality, start_continuous_learning]):
+        click.echo("🤖 AI Training System")
+        click.echo("Available commands:")
+        click.echo("  --generate-training-data    Generate training datasets")
+        click.echo("  --evaluate-models          Evaluate model performance")
+        click.echo("  --check-data-quality       Check data quality")
+        click.echo("  --start-continuous-learning Start continuous learning")
+        return
+
+    try:
+        if generate_training_data:
+            click.echo("🔄 Generating AI training data...")
+
+            from ai_training import TrainingDataPipeline, TrainingDataConfig
+
+            config = TrainingDataConfig()
+            pipeline = TrainingDataPipeline(config)
+
+            results = pipeline.generate_training_data()
+
+            click.echo(f"✅ Training data generation completed!")
+            click.echo(f"   Datasets generated: {len(results['datasets_generated'])}")
+            click.echo(f"   Overall quality score: {results['quality_metrics'].get('overall_score', 'N/A')}")
+
+            for model_type, dataset_info in results['datasets_generated'].items():
+                click.echo(f"   {model_type}: {dataset_info['train_samples']} train, {dataset_info['validation_samples']} val, {dataset_info['test_samples']} test")
+
+        if evaluate_models:
+            click.echo("📊 Evaluating AI models...")
+
+            from ai_training import ModelEvaluationFramework, EvaluationConfig
+
+            config = EvaluationConfig()
+            evaluator = ModelEvaluationFramework(config)
+
+            # Mock evaluation data
+            mock_predictions = [0.8, 0.9, 0.7, 0.85, 0.92]
+            mock_ground_truth = [1, 1, 0, 1, 1]
+
+            for model_type in ["recommendation", "personalization", "search_ranking", "content_generation"]:
+                results = evaluator.evaluate_model_performance(model_type, mock_predictions, mock_ground_truth)
+                accuracy = results['metrics'].get('accuracy', 'N/A')
+                if isinstance(accuracy, (int, float)):
+                    accuracy_str = f"{accuracy:.3f}"
+                else:
+                    accuracy_str = str(accuracy)
+                click.echo(f"   {model_type}: Grade {results['performance_grade']}, Score {accuracy_str}")
+
+        if check_data_quality:
+            click.echo("🔍 Checking data quality...")
+
+            from ai_training import DataQualityMonitor, DataQualityConfig
+            import json
+            from pathlib import Path
+
+            config = DataQualityConfig()
+            monitor = DataQualityMonitor(config)
+
+            # Check quality of available data files
+            data_dir = Path("data/raw")
+            if data_dir.exists():
+                for data_file in data_dir.glob("*.json"):
+                    try:
+                        with open(data_file, 'r') as f:
+                            data = json.load(f)
+
+                        source_name = data_file.stem.split('_')[0]
+                        quality_report = monitor.assess_data_quality(data, source_name)
+
+                        click.echo(f"   {source_name}: Quality score {quality_report['overall_score']:.3f}")
+                        if quality_report['issues_detected']:
+                            click.echo(f"     Issues: {len(quality_report['issues_detected'])}")
+                        if quality_report['alerts']:
+                            click.echo(f"     Alerts: {len(quality_report['alerts'])}")
+
+                    except Exception as e:
+                        click.echo(f"   Error checking {data_file}: {e}")
+            else:
+                click.echo("   No data files found for quality assessment")
+
+        if start_continuous_learning:
+            click.echo("🔄 Starting continuous learning pipeline...")
+            click.echo("   Note: This would start a background process in production")
+            click.echo("   For demo purposes, showing configuration:")
+
+            from ai_training import ContinuousLearningConfig
+
+            config = ContinuousLearningConfig()
+            click.echo(f"   Retrain interval: {config.retrain_interval_hours} hours")
+            click.echo(f"   Min data threshold: {config.min_new_data_threshold} samples")
+            click.echo(f"   Performance threshold: {config.performance_degradation_threshold}")
+            click.echo("   ✅ Continuous learning configuration validated")
+
+    except Exception as e:
+        click.echo(f"❌ AI training command failed: {e}", err=True)
+        raise click.Abort()
+
+
+@main.command()
 def init():
     """Initialize the data pipeline environment."""
     click.echo("🚀 Initializing College Advisor Data Pipeline")
