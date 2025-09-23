@@ -149,7 +149,8 @@ class TestCollegeScorecardCollector:
             {"id": 1, "school.name": "Test University 1"},
             {"id": 2, "school.name": "Test University 2"}
         ]
-        mock_collect_year.return_value = mock_data
+        # Return tuple (data, api_calls) as expected by the method
+        mock_collect_year.return_value = (mock_data, 1)
         
         # Run collection
         result = collector.collect(years=[2022], field_groups=["basic"])
@@ -183,12 +184,13 @@ class TestCollegeScorecardCollector:
         
         # Test data collection
         fields = ["id", "school.name"]
-        data = collector._collect_year_data(2022, fields, None, 100)
-        
+        data, api_calls = collector._collect_year_data(2022, fields, None, 100)
+
         # Verify results
         assert len(data) == 2
         assert data[0]["id"] == 1
         assert data[1]["school.name"] == "Test University 2"
+        assert api_calls == 1
         
         # Verify API call
         mock_get.assert_called_once()
@@ -222,11 +224,12 @@ class TestCollegeScorecardCollector:
         
         # Test data collection with small page size
         fields = ["id"]
-        data = collector._collect_year_data(2022, fields, None, 2)
-        
+        data, api_calls = collector._collect_year_data(2022, fields, None, 2)
+
         # Verify results
         assert len(data) == 4
-        assert mock_get.call_count == 3  # Three API calls for pagination
+        assert api_calls == 2  # Two API calls for pagination (stops when total reached)
+        assert mock_get.call_count == 2  # Two API calls for pagination
     
     @patch('requests.Session.get')
     def test_collect_year_data_with_states_filter(self, mock_get, collector):
@@ -242,7 +245,7 @@ class TestCollegeScorecardCollector:
         # Test with states filter
         fields = ["id", "school.state"]
         states = ["CA", "NY"]
-        data = collector._collect_year_data(2022, fields, states, 100)
+        data, api_calls = collector._collect_year_data(2022, fields, states, 100)
         
         # Verify API call includes state filter
         call_args = mock_get.call_args
@@ -256,10 +259,11 @@ class TestCollegeScorecardCollector:
         
         # Test data collection
         fields = ["id"]
-        data = collector._collect_year_data(2022, fields, None, 100)
-        
+        data, api_calls = collector._collect_year_data(2022, fields, None, 100)
+
         # Should return empty list on error
         assert len(data) == 0
+        assert api_calls == 0
     
     def test_save_data(self, collector, tmp_path):
         """Test data saving functionality."""

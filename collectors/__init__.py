@@ -17,11 +17,16 @@ from .state_apis import StateEducationCollector
 from .web_scrapers import UniversityWebScraper, ReviewPlatformScraper
 from .summer_programs import SummerProgramCollector
 from .financial_aid import FinancialAidCollector
-from .social_media import SocialMediaCollector
+from .social_media import SocialMediaCollector, SocialMediaAuthCollector
+# Enhanced authentication system collectors
+from .user_auth_collector import UserAuthCollector
+from .phone_verification_collector import PhoneVerificationCollector
+from .security_event_collector import SecurityEventCollector
+from .user_profile_collector import UserProfileCollector
 
 __all__ = [
     "BaseCollector",
-    "CollectorConfig", 
+    "CollectorConfig",
     "CollectionResult",
     "CollegeScorecardCollector",
     "IPEDSCollector",
@@ -32,4 +37,10 @@ __all__ = [
     "SummerProgramCollector",
     "FinancialAidCollector",
     "SocialMediaCollector",
+    # Enhanced authentication collectors
+    "SocialMediaAuthCollector",
+    "UserAuthCollector",
+    "PhoneVerificationCollector",
+    "SecurityEventCollector",
+    "UserProfileCollector",
 ]

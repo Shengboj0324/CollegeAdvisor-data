@@ -34,7 +34,7 @@ def main(verbose: bool):
 
 
 @main.command()
-@click.option('--collector', '-c', type=click.Choice(['scorecard', 'ipeds', 'cds']), default='scorecard', help='Data collector to use')
+@click.option('--collector', '-c', type=click.Choice(['scorecard', 'ipeds', 'cds', 'user_auth', 'social_auth', 'phone_verification', 'security_events', 'user_profiles']), default='scorecard', help='Data collector to use')
 @click.option('--years', '-y', help='Years to collect (comma-separated)')
 @click.option('--states', '-s', help='States to collect (comma-separated)')
 @click.option('--field-groups', '-f', help='Field groups to collect (comma-separated)')
@@ -78,6 +78,66 @@ def collect(collector: str, years: Optional[str], states: Optional[str], field_g
             click.echo(f"   Processing time: {result.processing_time:.2f} seconds")
             click.echo(f"   API calls made: {result.api_calls}")
 
+        elif collector == 'user_auth':
+            from collectors.base_collector import CollectorConfig
+            from collectors.user_auth_collector import UserAuthCollector
+
+            collector_config = CollectorConfig(api_key="demo", cache_enabled=True)
+            data_collector = UserAuthCollector(collector_config)
+            result = data_collector.collect()
+
+            click.echo(f"✅ User authentication data collection completed!")
+            click.echo(f"   Records collected: {result.total_records}")
+            click.echo(f"   API calls made: {result.api_calls}")
+
+        elif collector == 'social_auth':
+            from collectors.base_collector import CollectorConfig
+            from collectors.social_media import SocialMediaAuthCollector
+
+            collector_config = CollectorConfig(api_key="demo", cache_enabled=True)
+            data_collector = SocialMediaAuthCollector(collector_config)
+            result = data_collector.collect()
+
+            click.echo(f"✅ Social authentication data collection completed!")
+            click.echo(f"   Records collected: {result.total_records}")
+            click.echo(f"   API calls made: {result.api_calls}")
+
+        elif collector == 'phone_verification':
+            from collectors.base_collector import CollectorConfig
+            from collectors.phone_verification_collector import PhoneVerificationCollector
+
+            collector_config = CollectorConfig(api_key="demo", cache_enabled=True)
+            data_collector = PhoneVerificationCollector(collector_config)
+            result = data_collector.collect()
+
+            click.echo(f"✅ Phone verification data collection completed!")
+            click.echo(f"   Records collected: {result.total_records}")
+            click.echo(f"   API calls made: {result.api_calls}")
+
+        elif collector == 'security_events':
+            from collectors.base_collector import CollectorConfig
+            from collectors.security_event_collector import SecurityEventCollector
+
+            collector_config = CollectorConfig(api_key="demo", cache_enabled=True)
+            data_collector = SecurityEventCollector(collector_config)
+            result = data_collector.collect()
+
+            click.echo(f"✅ Security events data collection completed!")
+            click.echo(f"   Records collected: {result.total_records}")
+            click.echo(f"   API calls made: {result.api_calls}")
+
+        elif collector == 'user_profiles':
+            from collectors.base_collector import CollectorConfig
+            from collectors.user_profile_collector import UserProfileCollector
+
+            collector_config = CollectorConfig(api_key="demo", cache_enabled=True)
+            data_collector = UserProfileCollector(collector_config)
+            result = data_collector.collect()
+
+            click.echo(f"✅ User profiles data collection completed!")
+            click.echo(f"   Records collected: {result.total_records}")
+            click.echo(f"   API calls made: {result.api_calls}")
+
         else:
             click.echo(f"❌ Collector '{collector}' not yet implemented")
 
@@ -86,75 +146,63 @@ def collect(collector: str, years: Optional[str], states: Optional[str], field_g
         raise click.Abort()
 
 
+
+
+
 @main.command()
-@click.option('--collector', '-c', type=click.Choice(['scorecard', 'ipeds', 'cds']), required=True, help='Data collector to use')
-@click.option('--years', '-y', help='Years to collect (comma-separated, e.g., 2022,2023)')
-@click.option('--states', '-s', help='States to filter by (comma-separated, e.g., CA,NY,TX)')
-@click.option('--field-groups', '-f', help='Field groups to collect (comma-separated)')
-@click.option('--output', '-o', help='Output directory for collected data')
-def collect(collector: str, years: Optional[str], states: Optional[str], field_groups: Optional[str], output: Optional[str]):
-    """Collect data from external sources."""
-    click.echo(f"🔄 Starting data collection with {collector} collector")
+def test():
+    """Test the data collection system."""
+    click.echo("🧪 Testing College Scorecard collector...")
 
     try:
-        # Import collectors
-        import sys
-        sys.path.append('.')
         from collectors.base_collector import CollectorConfig
         from collectors.government import CollegeScorecardCollector
 
-        # Parse parameters
-        years_list = [int(y.strip()) for y in years.split(',')] if years else None
-        states_list = [s.strip().upper() for s in states.split(',')] if states else None
-        field_groups_list = [f.strip() for f in field_groups.split(',')] if field_groups else None
-
-        # Create collector configuration
+        # Create test configuration
         collector_config = CollectorConfig(
             api_key=config.college_scorecard_api_key,
             requests_per_second=config.default_requests_per_second,
             cache_enabled=True,
+            cache_ttl_hours=24,
             output_format="json"
         )
 
         # Initialize collector
-        if collector == 'scorecard':
-            data_collector = CollegeScorecardCollector(collector_config)
-        else:
-            click.echo(f"❌ Collector '{collector}' not yet implemented")
-            raise click.Abort()
+        data_collector = CollegeScorecardCollector(collector_config)
 
-        # Show source information
+        # Get source info
         source_info = data_collector.get_source_info()
-        click.echo(f"📊 Data Source: {source_info['name']}")
-        click.echo(f"   Provider: {source_info['provider']}")
-        click.echo(f"   Description: {source_info['description']}")
+        click.echo(f"✅ Source: {source_info['name']}")
+        click.echo(f"   Fields: {source_info['total_fields']}")
+        click.echo(f"   Categories: {len(source_info['data_categories'])}")
 
-        # Run collection
-        result = data_collector.collect(
-            years=years_list,
-            states=states_list,
-            field_groups=field_groups_list
-        )
+        # Test field groups
+        field_groups = data_collector.FIELD_GROUPS
+        click.echo(f"✅ Found {len(field_groups)} field groups:")
+        for group, fields in field_groups.items():
+            click.echo(f"   - {group}: {len(fields)} fields")
 
-        # Display results
-        click.echo(f"\n✅ Collection completed!")
-        click.echo(f"   Total records: {result.total_records}")
-        click.echo(f"   Successful: {result.successful_records}")
-        click.echo(f"   Failed: {result.failed_records}")
-        click.echo(f"   Success rate: {result.success_rate:.1%}")
-        click.echo(f"   Duration: {result.duration}")
+        click.echo(f"\n🎉 Basic tests passed!")
 
-        if result.errors:
-            click.echo(f"\n⚠️  Errors encountered:")
-            for error in result.errors:
-                click.echo(f"   - {error}")
-
-        if result.metadata.get("output_file"):
-            click.echo(f"\n💾 Data saved to: {result.metadata['output_file']}")
+        if config.college_scorecard_api_key == "DEMO_KEY":
+            click.echo(f"\nNote: Data collection test skipped due to DEMO_KEY rate limits.")
+            click.echo(f"To test data collection, get a production API key from:")
+            click.echo(f"https://api.data.gov/signup/")
 
     except Exception as e:
-        click.echo(f"❌ Collection failed: {e}", err=True)
+        click.echo(f"❌ Test failed: {e}", err=True)
         raise click.Abort()
+
+
+@main.command()
+def config_show():
+    """Show current configuration."""
+    click.echo("⚙️ Current Configuration:")
+    click.echo(f"   College Scorecard API Key: {'Set' if config.college_scorecard_api_key else 'Not set'}")
+    click.echo(f"   Data Directory: {config.data_dir}")
+    click.echo(f"   Cache Directory: {config.cache_dir}")
+    click.echo(f"   Log Level: {config.log_level}")
+    click.echo(f"   Requests per second: {config.default_requests_per_second}")
 
 
 @main.command()
@@ -162,20 +210,25 @@ def collect(collector: str, years: Optional[str], states: Optional[str], field_g
 @click.option('--reset', is_flag=True, help='Reset the collection before loading')
 def load(collection: Optional[str], reset: bool):
     """Load processed data into ChromaDB."""
-    collection_name = collection or config.chroma_collection_name
-    click.echo(f"Loading data into ChromaDB collection: {collection_name}")
-    
-    if reset:
-        click.confirm(f"This will delete all data in collection '{collection_name}'. Continue?", abort=True)
-    
-    client = ChromaDBClient()
     try:
+        from storage.chromadb_client import ChromaDBClient
+
+        collection_name = collection or config.chroma_collection_name
+        click.echo(f"Loading data into ChromaDB collection: {collection_name}")
+
+        if reset:
+            click.confirm(f"This will delete all data in collection '{collection_name}'. Continue?", abort=True)
+
+        client = ChromaDBClient()
         if reset:
             client.reset_collection(collection_name)
-        
+
         # Load processed data
         stats = client.load_processed_data(collection_name)
         click.echo(f"✅ Loaded {stats.total_embeddings} embeddings into ChromaDB")
+    except ImportError:
+        click.echo("❌ ChromaDB client not available. Install chromadb dependencies.")
+        raise click.Abort()
     except Exception as e:
         click.echo(f"❌ Loading failed: {e}", err=True)
         raise click.Abort()
@@ -187,19 +240,24 @@ def load(collection: Optional[str], reset: bool):
 @click.option('--limit', '-l', default=5, help='Number of results to return')
 def search(query: str, collection: Optional[str], limit: int):
     """Search the ChromaDB collection."""
-    collection_name = collection or config.chroma_collection_name
-    click.echo(f"Searching collection '{collection_name}' for: {query}")
-    
-    client = ChromaDBClient()
     try:
+        from storage.chromadb_client import ChromaDBClient
+
+        collection_name = collection or config.chroma_collection_name
+        click.echo(f"Searching collection '{collection_name}' for: {query}")
+
+        client = ChromaDBClient()
         results = client.search(collection_name, query, limit)
-        
+
         click.echo(f"\n📊 Found {len(results)} results:")
         for i, result in enumerate(results, 1):
             click.echo(f"\n{i}. Score: {result.get('distance', 'N/A'):.3f}")
             click.echo(f"   Type: {result.get('metadata', {}).get('doc_type', 'Unknown')}")
             click.echo(f"   Content: {result.get('document', '')[:200]}...")
-            
+
+    except ImportError:
+        click.echo("❌ ChromaDB client not available. Install chromadb dependencies.")
+        raise click.Abort()
     except Exception as e:
         click.echo(f"❌ Search failed: {e}", err=True)
         raise click.Abort()
@@ -209,101 +267,43 @@ def search(query: str, collection: Optional[str], limit: int):
 @click.option('--collection', '-c', default=None, help='ChromaDB collection name')
 def status(collection: Optional[str]):
     """Show pipeline and database status."""
-    collection_name = collection or config.chroma_collection_name
-    
+    collection_name = collection or getattr(config, 'chroma_collection_name', 'college_data')
+
     click.echo("📊 College Advisor Data Pipeline Status\n")
-    
+
     # Check processed data
-    processed_files = list(config.processed_dir.glob("*.json"))
-    click.echo(f"Processed files: {len(processed_files)}")
-    
+    processed_dir = getattr(config, 'processed_dir', Path('data/processed'))
+    if processed_dir.exists():
+        processed_files = list(processed_dir.glob("*.json"))
+        click.echo(f"Processed files: {len(processed_files)}")
+    else:
+        click.echo(f"Processed files: 0 (directory not found)")
+
+    # Check raw data
+    raw_dir = Path('data/raw')
+    if raw_dir.exists():
+        raw_files = list(raw_dir.glob("*.json"))
+        click.echo(f"Raw data files: {len(raw_files)}")
+    else:
+        click.echo(f"Raw data files: 0")
+
     # Check ChromaDB
-    client = ChromaDBClient()
     try:
+        from storage.chromadb_client import ChromaDBClient
+        client = ChromaDBClient()
         count = client.get_collection_count(collection_name)
         click.echo(f"ChromaDB documents: {count}")
         click.echo(f"Collection: {collection_name}")
+    except ImportError:
+        click.echo(f"ChromaDB status: ❌ Not available")
     except Exception as e:
         click.echo(f"ChromaDB status: ❌ {e}")
-    
+
     # Configuration
     click.echo(f"\nConfiguration:")
-    click.echo(f"  Embedding model: {config.embedding_model}")
-    click.echo(f"  Chunk size: {config.chunk_size}")
     click.echo(f"  Data directory: {config.data_dir}")
-
-
-@main.command()
-@click.option('--collection', '-c', default=None, help='ChromaDB collection name')
-@click.option('--save-report', '-s', default=None, help='Path to save evaluation report')
-def evaluate(collection: Optional[str], save_report: Optional[str]):
-    """Evaluate pipeline quality and data coverage."""
-    collection_name = collection or config.chroma_collection_name
-    click.echo(f"🔍 Evaluating pipeline for collection: {collection_name}")
-
-    evaluator = EvaluationMetrics()
-    try:
-        report = evaluator.generate_evaluation_report(
-            collection_name,
-            Path(save_report) if save_report else None
-        )
-
-        # Display summary
-        click.echo(f"\n📊 Evaluation Results:")
-        click.echo(f"Overall Score: {report['metrics'].get('overall_score', 0):.2f}/1.00")
-
-        for category, metrics in report['metrics'].items():
-            if isinstance(metrics, dict) and 'score' in metrics:
-                score = metrics['score']
-                status = "✅" if score >= 0.7 else "⚠️" if score >= 0.5 else "❌"
-                click.echo(f"{status} {category.replace('_', ' ').title()}: {score:.2f}")
-
-        # Show recommendations
-        if report.get('recommendations'):
-            click.echo(f"\n💡 Recommendations:")
-            for rec in report['recommendations']:
-                click.echo(f"  • {rec}")
-
-        if save_report:
-            click.echo(f"\n📄 Full report saved to: {save_report}")
-
-    except Exception as e:
-        click.echo(f"❌ Evaluation failed: {e}", err=True)
-        raise click.Abort()
-
-
-@main.command()
-@click.option('--collection', '-c', default=None, help='ChromaDB collection name')
-def coverage(collection: Optional[str]):
-    """Analyze data coverage across different dimensions."""
-    collection_name = collection or config.chroma_collection_name
-    click.echo(f"📈 Analyzing coverage for collection: {collection_name}")
-
-    analyzer = CoverageAnalyzer()
-    try:
-        analysis = analyzer.analyze_comprehensive_coverage(collection_name)
-
-        click.echo(f"\n📊 Coverage Analysis Results:")
-        click.echo(f"Overall Coverage Score: {analysis.get('overall_coverage_score', 0):.2f}/1.00")
-
-        # Display key metrics
-        for category, metrics in analysis.items():
-            if isinstance(metrics, dict) and 'coverage_score' in metrics:
-                score = metrics['coverage_score']
-                status = "✅" if score >= 0.7 else "⚠️" if score >= 0.5 else "❌"
-                click.echo(f"{status} {category.replace('_', ' ').title()}: {score:.2f}")
-
-                # Show specific details
-                if category == 'university_coverage':
-                    click.echo(f"    Universities: {metrics.get('total_universities', 0)}")
-                elif category == 'geographic_coverage':
-                    click.echo(f"    States: {metrics.get('states_covered', 0)}/50")
-                elif category == 'subject_coverage':
-                    click.echo(f"    Subject Areas: {metrics.get('total_subject_areas', 0)}")
-
-    except Exception as e:
-        click.echo(f"❌ Coverage analysis failed: {e}", err=True)
-        raise click.Abort()
+    click.echo(f"  Cache directory: {config.cache_dir}")
+    click.echo(f"  Log level: {config.log_level}")
 
 
 @main.command()
@@ -311,23 +311,57 @@ def health():
     """Check health of all pipeline components."""
     click.echo("🏥 Checking pipeline health...")
 
-    pipeline = IngestionPipeline()
     try:
-        health_status = pipeline.health_check()
+        # Check basic components
+        health_status = {}
 
-        overall_status = health_status.get("pipeline", "unknown")
-        status_icon = "✅" if overall_status == "healthy" else "❌"
-        click.echo(f"\n{status_icon} Overall Pipeline Status: {overall_status}")
+        # Check data directories
+        data_dir = Path('data')
+        raw_dir = data_dir / 'raw'
+        processed_dir = data_dir / 'processed'
+        cache_dir = Path('cache')  # Cache is at root level, not inside data
 
-        # Check individual components
-        components = health_status.get("components", {})
-        for component, status in components.items():
-            component_status = status.get("status", "unknown")
-            component_icon = "✅" if component_status == "healthy" else "❌"
-            click.echo(f"{component_icon} {component.title()}: {component_status}")
+        health_status['directories'] = {
+            'data': data_dir.exists(),
+            'raw': raw_dir.exists(),
+            'processed': processed_dir.exists(),
+            'cache': cache_dir.exists()
+        }
 
-            if component_status != "healthy" and "error" in status:
-                click.echo(f"    Error: {status['error']}")
+        # Check configuration
+        health_status['config'] = {
+            'api_key': bool(config.college_scorecard_api_key),
+            'data_dir': config.data_dir.exists() if hasattr(config.data_dir, 'exists') else True
+        }
+
+        # Check collectors
+        try:
+            from collectors.government import CollegeScorecardCollector
+            health_status['collectors'] = {'scorecard': True}
+        except ImportError as e:
+            health_status['collectors'] = {'scorecard': False, 'error': str(e)}
+
+        # Display results
+        overall_healthy = all(
+            all(v.values() if isinstance(v, dict) else [v])
+            for k, v in health_status.items()
+            if k != 'error'
+        )
+
+        status_icon = "✅" if overall_healthy else "❌"
+        click.echo(f"\n{status_icon} Overall Pipeline Status: {'healthy' if overall_healthy else 'issues detected'}")
+
+        for component, status in health_status.items():
+            if isinstance(status, dict):
+                component_healthy = all(status.values()) if 'error' not in status else False
+                component_icon = "✅" if component_healthy else "❌"
+                click.echo(f"{component_icon} {component.title()}: {'healthy' if component_healthy else 'issues'}")
+
+                if not component_healthy and 'error' in status:
+                    click.echo(f"    Error: {status['error']}")
+            else:
+                component_icon = "✅" if status else "❌"
+                click.echo(f"{component_icon} {component.title()}: {'healthy' if status else 'issues'}")
 
     except Exception as e:
         click.echo(f"❌ Health check failed: {e}", err=True)
