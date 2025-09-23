@@ -504,5 +504,175 @@ def init():
     click.echo("5. Run: college-data evaluate  # Evaluate pipeline quality")
 
 
+@main.command()
+@click.argument('seed_file', type=click.Path(exists=True))
+@click.option('--doc-type', default='general_info', help='Document type (college, program, summer_program, etc.)')
+@click.option('--batch-size', default=100, help='Batch size for processing')
+@click.option('--reset-collection', is_flag=True, help='Reset ChromaDB collection before ingestion')
+def ingest(seed_file: str, doc_type: str, batch_size: int, reset_collection: bool):
+    """
+    Complete end-to-end ingestion pipeline: load → preprocess → chunk → embed → upsert.
+
+    This command implements the canonical ingestion flow that the API depends on.
+    """
+    from pathlib import Path
+    import pandas as pd
+    from .schemas import (
+        create_document_metadata, DocumentChunk, EntityType, GPABand,
+        generate_chunk_id, calculate_content_checksum
+    )
+    from .preprocessing.preprocessor import TextPreprocessor
+    from .preprocessing.chunker import TextChunker
+    from .embedding.factory import get_canonical_embedder
+    from .storage.chroma_client import ChromaDBClient
+
+    setup_logging()
+    logger = logging.getLogger(__name__)
+
+    click.echo(f"🚀 Starting end-to-end ingestion pipeline")
+    click.echo(f"   Source: {seed_file}")
+    click.echo(f"   Document Type: {doc_type}")
+    click.echo(f"   Batch Size: {batch_size}")
+
+    try:
+        # Initialize components with canonical embedder
+        preprocessor = TextPreprocessor()
+        chunker = TextChunker()
+        embedder = get_canonical_embedder()  # LOCKED to sentence-transformers
+        chroma_client = ChromaDBClient()
+
+        # Reset collection if requested
+        if reset_collection:
+            click.echo("🔄 Resetting ChromaDB collection...")
+            chroma_client.reset_collection()
+
+        # Ensure collection exists
+        chroma_client.get_or_create_collection()
+
+        # Load seed data
+        click.echo("📂 Loading seed data...")
+        seed_path = Path(seed_file)
+
+        if seed_path.suffix.lower() == '.csv':
+            df = pd.read_csv(seed_path)
+            records = df.to_dict('records')
+        elif seed_path.suffix.lower() == '.json':
+            import json
+            with open(seed_path, 'r') as f:
+                records = json.load(f)
+        else:
+            raise ValueError(f"Unsupported file format: {seed_path.suffix}")
+
+        click.echo(f"   Loaded {len(records)} records")
+
+        # Process records
+        all_chunks = []
+        all_embeddings = []
+
+        with click.progressbar(records, label="Processing records") as bar:
+            for i, record in enumerate(bar):
+                try:
+                    # Extract required fields
+                    school = record.get('school', record.get('university_name', 'Unknown'))
+                    name = record.get('name', record.get('program_name', f'Record_{i}'))
+                    content = record.get('content', record.get('description', ''))
+                    location = record.get('location', record.get('state', 'Unknown'))
+
+                    if not content:
+                        continue
+
+                    # Preprocess content
+                    clean_content = preprocessor.preprocess(content)
+
+                    # Create document metadata
+                    try:
+                        entity_type = EntityType(doc_type)
+                    except ValueError:
+                        entity_type = EntityType.GENERAL_INFO
+
+                    metadata = create_document_metadata(
+                        entity_type=entity_type,
+                        school=school,
+                        name=name,
+                        location=location,
+                        source_type="seed_data",
+                        external_id=str(i),
+                        section=record.get('section', 'main'),
+                        content=clean_content,
+                        gpa_band=GPABand(record.get('gpa_band', 'not_specified')),
+                        majors=record.get('majors', '').split(',') if record.get('majors') else [],
+                        interests=record.get('interests', '').split(',') if record.get('interests') else [],
+                        url=record.get('url'),
+                        year=record.get('year')
+                    )
+
+                    # Create chunks
+                    chunks = chunker.chunk_text(clean_content)
+
+                    for chunk_idx, chunk_text in enumerate(chunks):
+                        chunk_id = generate_chunk_id(metadata.doc_id, chunk_idx)
+
+                        chunk = DocumentChunk(
+                            chunk_id=chunk_id,
+                            doc_id=metadata.doc_id,
+                            text=chunk_text,
+                            metadata=metadata,
+                            chunk_index=chunk_idx,
+                            token_count=len(chunk_text.split())
+                        )
+
+                        all_chunks.append(chunk)
+
+                except Exception as e:
+                    logger.error(f"Error processing record {i}: {e}")
+                    continue
+
+        if not all_chunks:
+            click.echo("❌ No chunks created from input data")
+            return
+
+        click.echo(f"📝 Created {len(all_chunks)} chunks")
+
+        # Generate embeddings
+        click.echo("🧠 Generating embeddings...")
+        chunk_texts = [chunk.text for chunk in all_chunks]
+
+        with click.progressbar(length=len(chunk_texts), label="Embedding chunks") as bar:
+            for i in range(0, len(chunk_texts), batch_size):
+                batch_texts = chunk_texts[i:i + batch_size]
+                batch_embeddings = embedder.embed_texts(batch_texts)
+                all_embeddings.extend(batch_embeddings)
+                bar.update(len(batch_texts))
+
+        click.echo(f"✅ Generated {len(all_embeddings)} embeddings")
+
+        # Upsert to ChromaDB
+        click.echo("💾 Upserting to ChromaDB...")
+        stats = chroma_client.upsert(all_chunks, all_embeddings)
+
+        click.echo("🎉 Ingestion completed successfully!")
+        click.echo(f"   Total chunks: {stats['total_chunks']}")
+        click.echo(f"   Successful: {stats['successful_chunks']}")
+        click.echo(f"   Failed: {stats['failed_chunks']}")
+
+        if stats['errors']:
+            click.echo("⚠️  Errors encountered:")
+            for error in stats['errors'][:5]:  # Show first 5 errors
+                click.echo(f"   - {error}")
+
+        # Show collection stats
+        collection_stats = chroma_client.stats()
+        click.echo(f"\n📊 Collection Statistics:")
+        click.echo(f"   Total documents: {collection_stats['total_documents']}")
+        click.echo(f"   Entity types: {list(collection_stats['entity_types'].keys())}")
+        click.echo(f"   Schools: {len(collection_stats['schools'])}")
+        click.echo(f"   Schema compliance: {collection_stats['schema_compliance']:.2%}")
+
+    except Exception as e:
+        logger.error(f"Ingestion failed: {e}")
+        click.echo(f"❌ Ingestion failed: {e}")
+        raise click.ClickException(str(e))
+
+
 if __name__ == "__main__":
     main()

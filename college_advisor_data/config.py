@@ -19,9 +19,12 @@ class Config:
         self.chroma_cloud_host = os.getenv("CHROMA_CLOUD_HOST")
         self.chroma_cloud_api_key = os.getenv("CHROMA_CLOUD_API_KEY")
 
-        # Embedding Configuration
-        self.embedding_model = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
-        self.embedding_provider = os.getenv("EMBEDDING_PROVIDER", "sentence_transformers")
+        # Embedding Configuration - LOCKED TO SENTENCE TRANSFORMERS
+        # This is the canonical embedding strategy for CollegeAdvisor-data
+        # API should NOT embed - data repo owns all embeddings
+        self.embedding_model = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+        self.embedding_provider = "sentence_transformers"  # LOCKED - do not change
+        self.embedding_dimension = 384  # all-MiniLM-L6-v2 dimension
 
         # Ollama Configuration
         self.ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
