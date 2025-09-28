@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chromadb
+  namespace: collegeadvisor
+  labels:
+    app: chromadb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chromadb
+  template:
+    metadata:
+      labels:
+        app: chromadb
+    spec:
+      containers:
+      - name: chromadb
+        image: chromadb/chroma:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: CHROMA_SERVER_HOST
+          value: "0.0.0.0"
+        - name: CHROMA_SERVER_HTTP_PORT
+          value: "8000"
+        - name: PERSIST_DIRECTORY
+          value: "/chroma/chroma_data"
+        volumeMounts:
+        - name: chroma-data
+          mountPath: /chroma/chroma_data
+        livenessProbe:
+          httpGet:
+            path: /api/v2/heartbeat
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /api/v2/heartbeat
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: chroma-data
+        persistentVolumeClaim:
+          claimName: chroma-data-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chromadb-service
+  namespace: collegeadvisor
+spec:
+  selector:
+    app: chromadb
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chroma-data-pvc
+  namespace: collegeadvisor
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

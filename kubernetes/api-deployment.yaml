@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collegeadvisor-api
+  namespace: collegeadvisor
+  labels:
+    app: collegeadvisor-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: collegeadvisor-api
+  template:
+    metadata:
+      labels:
+        app: collegeadvisor-api
+    spec:
+      containers:
+      - name: api
+        image: collegeadvisor/api:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: CHROMA_HOST
+          value: "chromadb-service"
+        - name: CHROMA_PORT
+          value: "8000"
+        - name: OLLAMA_HOST
+          value: "ollama-service"
+        - name: OLLAMA_PORT
+          value: "11434"
+        - name: PYTHONPATH
+          value: "/app"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: collegeadvisor-api-service
+  namespace: collegeadvisor
+spec:
+  selector:
+    app: collegeadvisor-api
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+  type: LoadBalancer
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: collegeadvisor-api-hpa
+  namespace: collegeadvisor
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: collegeadvisor-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
