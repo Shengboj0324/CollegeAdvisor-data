@@ -36,7 +36,9 @@ class UserProfile(BaseModel):
     school_type_preference: Optional[str] = Field(None, description="Preferred school type (public, private, etc.)")
     
     # Additional preferences
-    extracurricular_interests: Optional[List[str]] = Field(default_factory=list, description="Extracurricular interests")
+    extracurricular_interests: Optional[List[str]] = Field(
+        default_factory=list, description="Extracurricular interests"
+    )
     career_goals: Optional[str] = Field(None, description="Career goals or aspirations")
 
 class RecommendationRequest(BaseModel):

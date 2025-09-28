@@ -175,14 +175,19 @@ class RAGClient:
         """Build prompt for the LLM."""
         context = "\n\n".join([doc['content'] for doc in documents])
         
-        prompt = f"""You are a helpful college advisor assistant. Based on the following information about colleges and programs, please provide personalized recommendations to answer the user's question.
+        prompt = f"""You are a helpful college advisor assistant. Based on the following \
+information about colleges and programs, please provide personalized recommendations \
+to answer the user's question.
 
 CONTEXT:
 {context}
 
 USER QUESTION: {query}
 
-Please provide a helpful, accurate, and personalized response based on the context provided. Include specific details about colleges, programs, requirements, and costs when relevant. If the context doesn't contain enough information to fully answer the question, acknowledge this and provide what information you can.
+Please provide a helpful, accurate, and personalized response based on the context \
+provided. Include specific details about colleges, programs, requirements, and costs \
+when relevant. If the context doesn't contain enough information to fully answer the \
+question, acknowledge this and provide what information you can.
 
 RESPONSE:"""
         

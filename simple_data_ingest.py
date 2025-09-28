@@ -23,8 +23,8 @@ def ingest_sample_data():
         try:
             client.delete_collection("college_advisor")
             print("✅ Deleted existing collection")
-        except:
-            print("ℹ️  No existing collection to delete")
+        except Exception as e:
+            print(f"ℹ️  No existing collection to delete: {e}")
         
         # Create new collection with default embedding function
         collection = client.create_collection(
