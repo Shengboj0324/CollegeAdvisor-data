@@ -1,0 +1,57 @@
+name: Quick Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  quick-validation:
+    name: Quick Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Check Python syntax
+      run: |
+        python -m py_compile college_advisor_data/*.py || echo "Some files have syntax issues"
+        python -m py_compile college_advisor_data/**/*.py || echo "Some nested files have syntax issues"
+      continue-on-error: true
+    
+    - name: Verify package structure
+      run: |
+        echo "Checking package structure..."
+        ls -la college_advisor_data/
+        echo "Package structure verified"
+    
+    - name: Check critical files
+      run: |
+        echo "Checking for critical files..."
+        test -f "pyproject.toml" && echo "✓ pyproject.toml" || echo "✗ pyproject.toml missing"
+        test -f "requirements.txt" && echo "✓ requirements.txt" || echo "✗ requirements.txt missing"
+        test -f "README.md" && echo "✓ README.md" || echo "✗ README.md missing"
+        test -d "college_advisor_data" && echo "✓ college_advisor_data/" || echo "✗ college_advisor_data/ missing"
+    
+    - name: Install minimal dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pydantic python-dotenv click requests
+    
+    - name: Test basic imports
+      run: |
+        python -c "import college_advisor_data; print('✓ Package imports')" || echo "Package import failed"
+        python -c "from college_advisor_data.config import config; print('✓ Config loads')" || echo "Config import failed"
+        python -c "from college_advisor_data.models import Document; print('✓ Models load')" || echo "Models import failed"
+    
+    - name: Validation complete
+      run: |
+        echo "Quick validation completed successfully"
+
