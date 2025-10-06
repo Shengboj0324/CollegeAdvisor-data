@@ -70,6 +70,12 @@ class Config:
         self.enable_data_validation = os.getenv("ENABLE_DATA_VALIDATION", "true").lower() == "true"
         self.enable_synthetic_data = os.getenv("ENABLE_SYNTHETIC_DATA", "false").lower() == "true"
 
+        # Cloudflare R2 Configuration
+        self.r2_account_id = os.getenv("R2_ACCOUNT_ID")
+        self.r2_access_key_id = os.getenv("R2_ACCESS_KEY_ID")
+        self.r2_secret_access_key = os.getenv("R2_SECRET_ACCESS_KEY")
+        self.r2_bucket_name = os.getenv("R2_BUCKET_NAME", "collegeadvisor-data")
+
         # Logging Configuration
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
         log_file_path = os.getenv("LOG_FILE", "./logs/pipeline.log")
