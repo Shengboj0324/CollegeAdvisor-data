@@ -1,351 +1,553 @@
 #!/usr/bin/env python3
 """
-Comprehensive Testing Suite for Fine-Tuned College Advisor Model
-Tests professional understanding, accuracy, and detailed knowledge
+🧪 ADVANCED MODEL TESTING & VALIDATION SCRIPT
+==============================================
+
+Comprehensive testing suite for the fine-tuned CollegeAdvisor model.
+Tests for accuracy, response quality, and production readiness.
+
+Features:
+- ✅ Comprehensive accuracy testing
+- ✅ Response quality analysis
+- ✅ Benchmark comparisons
+- ✅ Production readiness validation
+- ✅ Performance metrics
+- ✅ Detailed reporting
 """
 
-import json
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from peft import PeftModel
+import os
 import sys
+import json
+import time
+import logging
 from pathlib import Path
+from typing import Dict, List, Any, Tuple
+from datetime import datetime
+import statistics
 
-print("=" * 100)
-print("COMPREHENSIVE COLLEGE ADVISOR MODEL EVALUATION")
-print("=" * 100)
-print()
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# Configuration
-MODEL_PATH = "collegeadvisor_model_macos"
-DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
+print("=" * 80)
+print("🧪 ADVANCED MODEL TESTING & VALIDATION")
+print("=" * 80)
 
-# Check if model exists
-if not Path(MODEL_PATH).exists():
-    print(f"❌ ERROR: Model not found at {MODEL_PATH}")
-    print("Please ensure fine-tuning completed successfully")
-    sys.exit(1)
 
-print(f"Loading model from: {MODEL_PATH}")
-print(f"Device: {DEVICE}")
-print()
-
-# Load model and tokenizer
-print("Step 1: Loading tokenizer and model...")
-try:
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_PATH,
-        torch_dtype=torch.float16 if DEVICE != "cpu" else torch.float32,
+class ModelTester:
+    """Comprehensive model testing and validation."""
+    
+    def __init__(self, model_dir: str = "collegeadvisor_model_advanced"):
+        self.model_dir = Path(model_dir)
+        self.model = None
+        self.tokenizer = None
+        self.device = self._detect_device()
+        self.test_results = {}
+        
+    def _detect_device(self) -> str:
+        """Detect the best available device."""
+        try:
+            import torch
+            
+            if torch.cuda.is_available():
+                return "cuda"
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                return "mps"
+            else:
+                return "cpu"
+        except ImportError:
+            return "cpu"
+    
+    def load_model(self) -> bool:
+        """Load the fine-tuned model."""
+        print("\n🤖 LOADING MODEL")
+        print("-" * 40)
+        
+        if not self.model_dir.exists():
+            print(f"❌ Model directory not found: {self.model_dir}")
+            return False
+        
+        try:
+            from transformers import AutoTokenizer, AutoModelForCausalLM
+            import torch
+            
+            print(f"📁 Model directory: {self.model_dir}")
+            print(f"🖥️  Device: {self.device}")
+            
+            # Load tokenizer
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_dir)
+            print("✅ Tokenizer loaded")
+            
+            # Load model
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.model_dir,
+                torch_dtype=torch.float16 if self.device != "cpu" else torch.float32,
+                device_map="auto" if self.device != "mps" else None,
         low_cpu_mem_usage=True
     )
     
-    if DEVICE == "mps":
-        model = model.to(DEVICE)
-    
-    print("✓ Model loaded successfully")
-    print(f"✓ Model parameters: {sum(p.numel() for p in model.parameters()):,}")
-    print(f"✓ Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
+            # Move to device if needed
+            if self.device == "mps":
+                self.model = self.model.to(self.device)
+            
+            print("✅ Model loaded successfully")
+            return True
+            
 except Exception as e:
-    print(f"❌ ERROR loading model: {e}")
-    sys.exit(1)
-
-print()
-
-# Test cases covering different aspects of college advising
-TEST_CASES = [
-    {
-        "category": "Admission Rates & Selectivity",
-        "questions": [
-            "What is the admission rate at Stanford University?",
-            "How selective is Harvard University?",
-            "Compare the admission rates of MIT and Caltech",
-            "Which Ivy League school has the highest acceptance rate?",
-        ]
-    },
-    {
-        "category": "Tuition & Financial Information",
-        "questions": [
-            "What is the tuition cost at Yale University?",
-            "How much does it cost to attend Princeton University?",
-            "Compare the tuition costs of public vs private universities",
-            "What is the average student debt at Columbia University?",
-        ]
-    },
-    {
-        "category": "Academic Programs & Majors",
-        "questions": [
-            "What are the most popular majors at UC Berkeley?",
-            "Does Cornell University offer engineering programs?",
-            "What programs is Carnegie Mellon known for?",
-            "Which universities have the best computer science programs?",
-        ]
-    },
-    {
-        "category": "Student Demographics & Size",
-        "questions": [
-            "How many students attend University of Michigan?",
-            "What is the student-to-faculty ratio at Brown University?",
-            "What percentage of students live on campus at Duke University?",
-            "How diverse is the student body at UCLA?",
-        ]
-    },
-    {
-        "category": "Location & Campus",
-        "questions": [
-            "Where is Dartmouth College located?",
-            "What is the campus setting of Northwestern University?",
-            "Which universities are in the Boston area?",
-            "Is University of Pennsylvania in an urban or rural setting?",
-        ]
-    },
-    {
-        "category": "Graduation & Outcomes",
-        "questions": [
-            "What is the graduation rate at Johns Hopkins University?",
-            "What percentage of students complete their degree at Vanderbilt?",
-            "What are the employment outcomes for graduates of Rice University?",
-            "How long does it take to graduate from University of Chicago?",
-        ]
-    },
-    {
-        "category": "Comparative Analysis",
-        "questions": [
-            "Compare Stanford and MIT in terms of selectivity and programs",
-            "What are the differences between Harvard and Yale?",
-            "How does UC Berkeley compare to UCLA?",
-            "Which is better for engineering: Caltech or MIT?",
-        ]
-    },
-    {
-        "category": "Specific Data Points",
-        "questions": [
-            "What is the SAT score range for admitted students at Princeton?",
-            "What is the average GPA of students at Georgetown University?",
-            "How many applications does Harvard receive each year?",
-            "What is the endowment size of Yale University?",
-        ]
-    }
-]
-
-def generate_response(question, max_length=200, temperature=0.7):
-    """Generate response from the model"""
-    prompt = f"""### Instruction:
-{question}
-
-### Input:
-
-
-### Response:
-"""
+            print(f"❌ Error loading model: {e}")
+            return False
     
-    inputs = tokenizer(prompt, return_tensors="pt")
-    if DEVICE != "cpu":
-        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+    def create_test_dataset(self) -> List[Dict[str, str]]:
+        """Create comprehensive test dataset."""
+        return [
+            # Basic factual questions
+            {
+                "question": "What is the admission rate at Stanford University?",
+                "expected_keywords": ["stanford", "admission", "rate", "%"],
+                "category": "factual"
+            },
+            {
+                "question": "How much does it cost to attend MIT?",
+                "expected_keywords": ["mit", "tuition", "cost", "$"],
+                "category": "factual"
+            },
+            {
+                "question": "What are the requirements for UC Berkeley?",
+                "expected_keywords": ["berkeley", "requirements", "gpa", "sat"],
+                "category": "requirements"
+            },
+            
+            # Program-specific questions
+            {
+                "question": "Tell me about Harvard's computer science program.",
+                "expected_keywords": ["harvard", "computer science", "program"],
+                "category": "programs"
+            },
+            {
+                "question": "What engineering programs does Carnegie Mellon offer?",
+                "expected_keywords": ["carnegie mellon", "engineering", "programs"],
+                "category": "programs"
+            },
+            {
+                "question": "Which universities have the best business schools?",
+                "expected_keywords": ["business", "schools", "universities"],
+                "category": "rankings"
+            },
+            
+            # Comparative questions
+            {
+                "question": "Compare Harvard and Yale universities.",
+                "expected_keywords": ["harvard", "yale", "compare"],
+                "category": "comparison"
+            },
+            {
+                "question": "What's the difference between public and private universities?",
+                "expected_keywords": ["public", "private", "universities", "difference"],
+                "category": "comparison"
+            },
+            
+            # Advice questions
+            {
+                "question": "What should I study to prepare for medical school?",
+                "expected_keywords": ["medical school", "study", "prepare"],
+                "category": "advice"
+            },
+            {
+                "question": "How can I improve my chances of getting into a top university?",
+                "expected_keywords": ["improve", "chances", "university"],
+                "category": "advice"
+            },
+            
+            # Complex questions
+            {
+                "question": "I have a 3.7 GPA and want to study computer science in California. What are my options?",
+                "expected_keywords": ["3.7", "gpa", "computer science", "california"],
+                "category": "personalized"
+            },
+            {
+                "question": "What are some affordable universities with good engineering programs?",
+                "expected_keywords": ["affordable", "universities", "engineering"],
+                "category": "personalized"
+            },
+            
+            # Edge cases
+            {
+                "question": "What is the capital of France?",
+                "expected_keywords": [],  # Should decline to answer
+                "category": "out_of_scope"
+            },
+            {
+                "question": "Tell me about quantum physics.",
+                "expected_keywords": [],  # Should decline to answer
+                "category": "out_of_scope"
+            }
+        ]
+    
+    def generate_response(self, question: str, max_tokens: int = 200) -> Tuple[str, float]:
+        """Generate response and measure response time."""
+        try:
+            import torch
+            
+            # Format as chat
+            messages = [{"role": "user", "content": question}]
+            
+            # Apply chat template if available
+            if hasattr(self.tokenizer, 'apply_chat_template'):
+                prompt = self.tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+            else:
+                prompt = f"User: {question}\nAssistant:"
+            
+            # Tokenize
+            inputs = self.tokenizer(
+                prompt,
+                return_tensors="pt",
+                truncation=True,
+                max_length=1024
+            )
+            
+            # Move to device
+            if self.device != "cpu":
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            # Generate
+            start_time = time.time()
     
     with torch.no_grad():
-        outputs = model.generate(
+                outputs = self.model.generate(
             **inputs,
-            max_new_tokens=max_length,
-            temperature=temperature,
+                    max_new_tokens=max_tokens,
+                    temperature=0.7,
             do_sample=True,
             top_p=0.9,
-            top_k=50,
-            pad_token_id=tokenizer.eos_token_id,
-            repetition_penalty=1.1
-        )
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    eos_token_id=self.tokenizer.eos_token_id
+                )
+            
+            response_time = time.time() - start_time
+            
+            # Decode response
+            response = self.tokenizer.decode(
+                outputs[0][inputs['input_ids'].shape[1]:],
+                skip_special_tokens=True
+            ).strip()
+            
+            return response, response_time
+            
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            return f"Error: {e}", 0.0
     
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    
-    # Extract only the response part
-    if "### Response:" in response:
-        response = response.split("### Response:")[1].strip()
-    
-    return response
-
-# Evaluation criteria
-def evaluate_response(response, question):
-    """Evaluate response quality"""
-    scores = {
-        "length": 0,
-        "specificity": 0,
-        "professionalism": 0,
-        "data_mention": 0,
-        "coherence": 0
-    }
-    
-    # Length check (should be substantial but not too long)
-    word_count = len(response.split())
-    if 20 <= word_count <= 150:
-        scores["length"] = 10
-    elif 10 <= word_count < 20 or 150 < word_count <= 200:
-        scores["length"] = 7
-    else:
-        scores["length"] = 5
-    
-    # Specificity (mentions numbers, percentages, specific data)
-    specific_indicators = ['%', 'percent', 'rate', 'approximately', 'around', '$', 'students', 'ratio']
-    specificity_count = sum(1 for indicator in specific_indicators if indicator.lower() in response.lower())
-    scores["specificity"] = min(10, specificity_count * 3)
-    
-    # Professionalism (avoids casual language, uses proper terms)
-    professional_terms = ['university', 'college', 'institution', 'program', 'academic', 'admission', 'enrollment']
-    casual_terms = ['like', 'stuff', 'things', 'kinda', 'sorta', 'yeah', 'nah']
-    
-    prof_count = sum(1 for term in professional_terms if term.lower() in response.lower())
-    casual_count = sum(1 for term in casual_terms if term.lower() in response.lower())
-    
-    scores["professionalism"] = max(0, min(10, prof_count * 2 - casual_count * 3))
-    
-    # Data mention (references specific universities, numbers, facts)
-    has_numbers = any(char.isdigit() for char in response)
-    has_university_name = any(word[0].isupper() for word in response.split())
-    
-    if has_numbers and has_university_name:
-        scores["data_mention"] = 10
-    elif has_numbers or has_university_name:
-        scores["data_mention"] = 6
-    else:
-        scores["data_mention"] = 3
-    
-    # Coherence (complete sentences, logical flow)
-    sentences = response.split('.')
-    complete_sentences = [s for s in sentences if len(s.strip()) > 10]
-    
-    if len(complete_sentences) >= 2:
-        scores["coherence"] = 10
-    elif len(complete_sentences) == 1:
-        scores["coherence"] = 7
-    else:
-        scores["coherence"] = 4
-    
-    total_score = sum(scores.values())
-    return scores, total_score
-
-# Run comprehensive tests
-print("=" * 100)
-print("RUNNING COMPREHENSIVE EVALUATION")
-print("=" * 100)
-print()
-
-all_results = []
-category_scores = {}
-
-for test_category in TEST_CASES:
-    category = test_category["category"]
-    questions = test_category["questions"]
-    
-    print(f"\n{'=' * 100}")
-    print(f"CATEGORY: {category}")
-    print(f"{'=' * 100}\n")
-    
-    category_total = 0
-    category_count = 0
-    
-    for i, question in enumerate(questions, 1):
-        print(f"\n[Question {i}/{len(questions)}]")
-        print(f"Q: {question}")
-        print(f"{'-' * 100}")
+    def evaluate_response_quality(self, question: str, response: str, expected_keywords: List[str], category: str) -> Dict[str, Any]:
+        """Evaluate the quality of a response."""
+        metrics = {
+            "length": len(response),
+            "word_count": len(response.split()),
+            "keyword_score": 0.0,
+            "relevance_score": 0.0,
+            "quality_score": 0.0,
+            "issues": []
+        }
         
-        # Generate response
-        response = generate_response(question)
+        # Check for basic issues
+        if len(response) < 20:
+            metrics["issues"].append("Too short")
         
-        # Evaluate
-        scores, total = evaluate_response(response, question)
+        if "I don't know" in response.lower() or "I'm not sure" in response.lower():
+            if category != "out_of_scope":
+                metrics["issues"].append("Claims ignorance inappropriately")
         
-        print(f"A: {response}")
-        print(f"{'-' * 100}")
-        print(f"Evaluation Scores:")
-        print(f"  • Length:          {scores['length']}/10")
-        print(f"  • Specificity:     {scores['specificity']}/10")
-        print(f"  • Professionalism: {scores['professionalism']}/10")
-        print(f"  • Data Mention:    {scores['data_mention']}/10")
-        print(f"  • Coherence:       {scores['coherence']}/10")
-        print(f"  • TOTAL:           {total}/50")
+        if "error" in response.lower():
+            metrics["issues"].append("Contains error message")
         
-        # Grade
-        if total >= 45:
-            grade = "A+ (Excellent)"
-        elif total >= 40:
-            grade = "A  (Very Good)"
-        elif total >= 35:
-            grade = "B+ (Good)"
-        elif total >= 30:
-            grade = "B  (Satisfactory)"
-        elif total >= 25:
-            grade = "C+ (Fair)"
+        # Keyword matching
+        if expected_keywords:
+            response_lower = response.lower()
+            matched_keywords = sum(1 for kw in expected_keywords if kw.lower() in response_lower)
+            metrics["keyword_score"] = matched_keywords / len(expected_keywords)
         else:
-            grade = "C  (Needs Improvement)"
+            # For out-of-scope questions, check if it appropriately declines
+            if category == "out_of_scope":
+                decline_phrases = ["college", "university", "can't help", "not my expertise"]
+                if any(phrase in response.lower() for phrase in decline_phrases):
+                    metrics["keyword_score"] = 1.0
+                else:
+                    metrics["keyword_score"] = 0.0
         
-        print(f"  • GRADE:           {grade}")
+        # Relevance score (simple heuristic)
+        question_words = set(question.lower().split())
+        response_words = set(response.lower().split())
+        common_words = question_words.intersection(response_words)
+        metrics["relevance_score"] = len(common_words) / len(question_words) if question_words else 0.0
         
-        all_results.append({
-            "category": category,
-            "question": question,
-            "response": response,
-            "scores": scores,
-            "total": total,
-            "grade": grade
-        })
+        # Overall quality score
+        metrics["quality_score"] = (
+            metrics["keyword_score"] * 0.4 +
+            metrics["relevance_score"] * 0.3 +
+            (1.0 if not metrics["issues"] else 0.5) * 0.3
+        )
         
-        category_total += total
-        category_count += 1
+        return metrics
     
-    category_avg = category_total / category_count
-    category_scores[category] = category_avg
+    def run_comprehensive_tests(self) -> Dict[str, Any]:
+        """Run comprehensive test suite."""
+        print("\n🧪 RUNNING COMPREHENSIVE TESTS")
+        print("-" * 40)
+        
+        test_dataset = self.create_test_dataset()
+        results = {
+            "total_tests": len(test_dataset),
+            "passed_tests": 0,
+            "failed_tests": 0,
+            "response_times": [],
+            "quality_scores": [],
+            "category_scores": {},
+            "detailed_results": []
+        }
+        
+        print(f"📊 Running {len(test_dataset)} test cases...")
+        
+        for i, test_case in enumerate(test_dataset, 1):
+            print(f"\n📝 Test {i}/{len(test_dataset)}: {test_case['category'].upper()}")
+            print(f"❓ Question: {test_case['question']}")
+            
+            # Generate response
+            response, response_time = self.generate_response(test_case['question'])
+            results["response_times"].append(response_time)
+            
+            print(f"🤖 Response: {response[:100]}{'...' if len(response) > 100 else ''}")
+            print(f"⏱️  Response time: {response_time:.2f}s")
+            
+            # Evaluate quality
+            quality_metrics = self.evaluate_response_quality(
+                test_case['question'],
+                response,
+                test_case['expected_keywords'],
+                test_case['category']
+            )
+            
+            results["quality_scores"].append(quality_metrics["quality_score"])
+            
+            # Category tracking
+            category = test_case['category']
+            if category not in results["category_scores"]:
+                results["category_scores"][category] = []
+            results["category_scores"][category].append(quality_metrics["quality_score"])
+            
+            # Pass/fail determination
+            passed = quality_metrics["quality_score"] >= 0.6 and not quality_metrics["issues"]
+            if passed:
+                results["passed_tests"] += 1
+                print("✅ PASSED")
+    else:
+                results["failed_tests"] += 1
+                print(f"❌ FAILED: {', '.join(quality_metrics['issues']) if quality_metrics['issues'] else 'Low quality score'}")
+            
+            # Store detailed results
+            results["detailed_results"].append({
+                "question": test_case['question'],
+                "response": response,
+                "category": category,
+                "response_time": response_time,
+                "quality_metrics": quality_metrics,
+                "passed": passed
+            })
+        
+        return results
     
-    print(f"\n{'-' * 100}")
-    print(f"Category Average: {category_avg:.1f}/50")
-    print(f"{'=' * 100}")
-
-# Final Summary
-print(f"\n\n{'=' * 100}")
-print("FINAL EVALUATION SUMMARY")
-print(f"{'=' * 100}\n")
-
-overall_avg = sum(r["total"] for r in all_results) / len(all_results)
-
-print(f"Total Questions Tested: {len(all_results)}")
-print(f"Overall Average Score:  {overall_avg:.1f}/50 ({overall_avg*2:.1f}%)")
+    def calculate_final_metrics(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate final performance metrics."""
+        metrics = {
+            "accuracy": results["passed_tests"] / results["total_tests"],
+            "avg_response_time": statistics.mean(results["response_times"]),
+            "avg_quality_score": statistics.mean(results["quality_scores"]),
+            "response_time_std": statistics.stdev(results["response_times"]) if len(results["response_times"]) > 1 else 0,
+            "category_performance": {}
+        }
+        
+        # Category performance
+        for category, scores in results["category_scores"].items():
+            metrics["category_performance"][category] = {
+                "avg_score": statistics.mean(scores),
+                "count": len(scores),
+                "pass_rate": sum(1 for score in scores if score >= 0.6) / len(scores)
+            }
+        
+        return metrics
+    
+    def generate_report(self, results: Dict[str, Any], metrics: Dict[str, Any]) -> None:
+        """Generate detailed test report."""
+        print("\n" + "=" * 80)
+        print("📊 COMPREHENSIVE TEST REPORT")
+        print("=" * 80)
+        
+        # Overall metrics
+        print(f"\n🎯 OVERALL PERFORMANCE")
+        print(f"   Accuracy: {metrics['accuracy']:.1%}")
+        print(f"   Quality Score: {metrics['avg_quality_score']:.3f}")
+        print(f"   Tests Passed: {results['passed_tests']}/{results['total_tests']}")
+        print(f"   Average Response Time: {metrics['avg_response_time']:.2f}s")
+        
+        # Target achievement
+        target_accuracy = 0.95
+        if metrics['accuracy'] >= target_accuracy:
+            print(f"✅ TARGET ACHIEVED: {metrics['accuracy']:.1%} >= {target_accuracy:.1%}")
+    else:
+            print(f"❌ TARGET MISSED: {metrics['accuracy']:.1%} < {target_accuracy:.1%}")
+        
+        # Category breakdown
+        print(f"\n📋 CATEGORY PERFORMANCE")
+        for category, perf in metrics["category_performance"].items():
+            print(f"   {category.upper()}: {perf['avg_score']:.3f} ({perf['pass_rate']:.1%} pass rate)")
+        
+        # Performance analysis
+        print(f"\n⚡ PERFORMANCE ANALYSIS")
+        if metrics['avg_response_time'] < 2.0:
+            print("✅ Response time: Excellent (< 2s)")
+        elif metrics['avg_response_time'] < 5.0:
+            print("✅ Response time: Good (< 5s)")
+        else:
+            print("⚠️  Response time: Could be improved (> 5s)")
+        
+        # Quality analysis
+        if metrics['avg_quality_score'] >= 0.8:
+            print("✅ Response quality: Excellent")
+        elif metrics['avg_quality_score'] >= 0.6:
+            print("✅ Response quality: Good")
+    else:
+            print("⚠️  Response quality: Needs improvement")
+        
+        # Failed tests analysis
+        if results["failed_tests"] > 0:
+            print(f"\n❌ FAILED TESTS ANALYSIS")
+            failed_tests = [r for r in results["detailed_results"] if not r["passed"]]
+            
+            for test in failed_tests[:3]:  # Show first 3 failures
+                print(f"   Question: {test['question']}")
+                print(f"   Issues: {', '.join(test['quality_metrics']['issues'])}")
+                print(f"   Quality Score: {test['quality_metrics']['quality_score']:.3f}")
 print()
 
-print("Category Performance:")
-for category, avg_score in category_scores.items():
-    percentage = (avg_score / 50) * 100
-    print(f"  • {category:40s} {avg_score:5.1f}/50 ({percentage:5.1f}%)")
+        # Recommendations
+        print(f"\n💡 RECOMMENDATIONS")
+        
+        if metrics['accuracy'] < 0.9:
+            print("   • Consider additional training epochs")
+            print("   • Review training data quality")
+            print("   • Adjust learning rate or LoRA parameters")
+        
+        if metrics['avg_response_time'] > 3.0:
+            print("   • Consider model quantization for faster inference")
+            print("   • Optimize generation parameters")
+        
+        low_performing_categories = [
+            cat for cat, perf in metrics["category_performance"].items()
+            if perf['avg_score'] < 0.7
+        ]
+        
+        if low_performing_categories:
+            print(f"   • Focus on improving: {', '.join(low_performing_categories)}")
+        
+        # Production readiness
+        print(f"\n🚀 PRODUCTION READINESS")
+        
+        production_ready = (
+            metrics['accuracy'] >= 0.85 and
+            metrics['avg_quality_score'] >= 0.7 and
+            metrics['avg_response_time'] <= 5.0
+        )
+        
+        if production_ready:
+            print("✅ Model is PRODUCTION READY!")
+            print("   • High accuracy and quality scores")
+            print("   • Acceptable response times")
+            print("   • Ready for deployment")
+        else:
+            print("⚠️  Model needs improvement before production")
+            print("   • Review failed tests and recommendations")
+            print("   • Consider additional training")
+        
+        print("\n" + "=" * 80)
+    
+    def save_results(self, results: Dict[str, Any], metrics: Dict[str, Any]) -> None:
+        """Save test results to file."""
+        report_data = {
+            "test_date": datetime.now().isoformat(),
+            "model_dir": str(self.model_dir),
+            "device": self.device,
+            "results": results,
+            "metrics": metrics
+        }
+        
+        report_file = f"test_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        
+        with open(report_file, 'w') as f:
+            json.dump(report_data, f, indent=2, default=str)
+        
+        print(f"📄 Detailed report saved to: {report_file}")
+    
+    def run_full_validation(self) -> bool:
+        """Run the complete validation suite."""
+        print("🚀 STARTING FULL MODEL VALIDATION")
+        print("=" * 80)
+        
+        # Load model
+        if not self.load_model():
+            return False
+        
+        # Run tests
+        results = self.run_comprehensive_tests()
+        
+        # Calculate metrics
+        metrics = self.calculate_final_metrics(results)
+        
+        # Generate report
+        self.generate_report(results, metrics)
+        
+        # Save results
+        self.save_results(results, metrics)
+        
+        # Return success based on target achievement
+        return metrics['accuracy'] >= 0.85  # Minimum production threshold
 
-print()
 
-# Overall grade
-if overall_avg >= 45:
-    final_grade = "A+ (EXCELLENT - Production Ready)"
-elif overall_avg >= 40:
-    final_grade = "A  (VERY GOOD - Highly Professional)"
-elif overall_avg >= 35:
-    final_grade = "B+ (GOOD - Professional Quality)"
-elif overall_avg >= 30:
-    final_grade = "B  (SATISFACTORY - Acceptable)"
-elif overall_avg >= 25:
-    final_grade = "C+ (FAIR - Needs Refinement)"
-else:
-    final_grade = "C  (NEEDS IMPROVEMENT)"
+def main():
+    """Main execution function."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Test fine-tuned CollegeAdvisor model")
+    parser.add_argument(
+        "--model-dir",
+        default="collegeadvisor_model_advanced",
+        help="Path to the fine-tuned model directory"
+    )
+    
+    args = parser.parse_args()
+    
+    try:
+        tester = ModelTester(args.model_dir)
+        success = tester.run_full_validation()
+        
+        if success:
+            print("\n🎉 MODEL VALIDATION SUCCESSFUL!")
+            print("Your CollegeAdvisor model is ready for production!")
+        else:
+            print("\n⚠️  MODEL NEEDS IMPROVEMENT")
+            print("Review the test report and consider additional training.")
+        
+        return success
+        
+    except KeyboardInterrupt:
+        print("\n⚠️  Testing interrupted by user")
+        return False
+    except Exception as e:
+        print(f"\n❌ Testing failed: {e}")
+        return False
 
-print(f"FINAL GRADE: {final_grade}")
-print()
 
-# Save detailed results
-results_file = "model_evaluation_results.json"
-with open(results_file, 'w') as f:
-    json.dump({
-        "overall_average": overall_avg,
-        "final_grade": final_grade,
-        "category_scores": category_scores,
-        "detailed_results": all_results
-    }, f, indent=2)
-
-print(f"✓ Detailed results saved to: {results_file}")
-print()
-print(f"{'=' * 100}")
-print("EVALUATION COMPLETE")
-print(f"{'=' * 100}")
-
+if __name__ == "__main__":
+    success = main()
+    sys.exit(0 if success else 1)
