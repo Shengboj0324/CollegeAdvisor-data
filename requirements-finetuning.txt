@@ -1,0 +1,24 @@
+# Minimal requirements for fine-tuning on macOS
+# Install with: pip install -r requirements-finetuning.txt
+
+# Core dependencies (needed for R2 download)
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+boto3>=1.28.0
+
+# PyTorch (macOS version with MPS support)
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Transformers and fine-tuning
+transformers>=4.30.0
+datasets>=2.14.0
+accelerate>=0.20.0
+peft>=0.4.0
+trl<0.9.0
+
+# Utilities
+tqdm>=4.65.0
+numpy>=1.24.0,<2.0.0
+
