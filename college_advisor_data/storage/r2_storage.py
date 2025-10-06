@@ -55,12 +55,13 @@ class R2StorageClient:
         
         # Initialize S3 client for R2
         self.endpoint_url = f"https://{self.account_id}.r2.cloudflarestorage.com"
-        
+
         self.client = boto3.client(
             's3',
             endpoint_url=self.endpoint_url,
             aws_access_key_id=self.access_key_id,
             aws_secret_access_key=self.secret_access_key,
+            region_name='auto',  # R2 uses 'auto' as region
             config=Config(
                 signature_version='s3v4',
                 retries={'max_attempts': 3, 'mode': 'adaptive'}
@@ -72,21 +73,23 @@ class R2StorageClient:
     def create_bucket(self, bucket_name: str = None) -> bool:
         """
         Create a new R2 bucket.
-        
+
         Args:
             bucket_name: Name of bucket to create (uses default if not provided)
-            
+
         Returns:
             True if successful, False otherwise
         """
         bucket = bucket_name or self.bucket_name
-        
+
         try:
+            # R2 doesn't use LocationConstraint - just create bucket without it
             self.client.create_bucket(Bucket=bucket)
             logger.info(f"Created R2 bucket: {bucket}")
             return True
         except ClientError as e:
-            if e.response['Error']['Code'] == 'BucketAlreadyOwnedByYou':
+            error_code = e.response['Error']['Code']
+            if error_code in ['BucketAlreadyOwnedByYou', 'BucketAlreadyExists']:
                 logger.info(f"Bucket {bucket} already exists")
                 return True
             else:
