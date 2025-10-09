@@ -40,7 +40,7 @@ print()
 # Test configuration
 class TestConfig:
     def __init__(self):
-        self.model_path = "collegeadvisor_advanced_model"
+        self.model_path = "collegeadvisor_bulletproof_model"  # Match training script
         self.max_new_tokens = 200
         self.temperature = 0.7
         self.top_p = 0.9
@@ -50,7 +50,7 @@ class TestConfig:
         self.min_length = 20
         self.max_length = 500
         self.quality_threshold = 75
-        self.accuracy_threshold = 95
+        self.accuracy_threshold = 96  # Match 96%+ target
 
 config = TestConfig()
 
@@ -214,14 +214,10 @@ def run_test_category(model, tokenizer, category_name: str, questions: List[str]
     
     for i, question in enumerate(questions, 1):
         try:
-            # Format prompt
-            prompt = f"""<|im_start|>system
-You are CollegeAdvisor, an expert AI assistant specializing in college admissions, university information, and academic guidance. Provide accurate, helpful, and detailed responses.
-<|im_end|>
-<|im_start|>user
-{question}
-<|im_end|>
-<|im_start|>assistant
+            # Format prompt - CORRECT TinyLlama format
+            prompt = f"""<|user|>
+{question}</s>
+<|assistant|>
 """
             
             # Generate response
@@ -247,11 +243,11 @@ You are CollegeAdvisor, an expert AI assistant specializing in college admission
             # Decode response
             response = tokenizer.decode(outputs[0], skip_special_tokens=True)
             
-            # Extract answer
-            if "<|im_start|>assistant" in response:
-                answer = response.split("<|im_start|>assistant")[-1].strip()
-                if "<|im_end|>" in answer:
-                    answer = answer.split("<|im_end|>")[0].strip()
+            # Extract answer - CORRECT format
+            if "<|assistant|>" in response:
+                answer = response.split("<|assistant|>")[-1].strip()
+                if "</s>" in answer:
+                    answer = answer.split("</s>")[0].strip()
             else:
                 answer = response
             
@@ -435,3 +431,4 @@ def main():
 if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
+
