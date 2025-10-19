@@ -102,17 +102,12 @@ def validate_system():
     # Check PyTorch
     logger.info(f"✅ PyTorch version: {torch.__version__}")
     
-    # Check device
-    if torch.backends.mps.is_available():
-        device = "mps"
-        logger.info("✅ Device: Apple Silicon (MPS)")
-    elif torch.cuda.is_available():
-        device = "cuda"
-        logger.info(f"✅ Device: CUDA ({torch.cuda.get_device_name(0)})")
-    else:
-        device = "cpu"
-        logger.info("⚠️  Device: CPU (training will be slow)")
-    
+    # FORCE CPU MODE - MPS has deadlock issues with SFTTrainer
+    device = "cpu"
+    logger.info("✅ Device: CPU (forced for stability)")
+    logger.info("ℹ️  Note: MPS disabled due to known deadlock issues with transformer training")
+    logger.info("ℹ️  Training will take 4-6 hours on CPU (vs 1-2 hours on MPS if it worked)")
+
     return device
 
 # ============================================================================
@@ -198,14 +193,19 @@ def setup_model_and_tokenizer(config: TrainingConfig):
     
     logger.info("✅ Tokenizer loaded")
     
-    # Load model - FIX: Remove device_map to avoid meta device issues on MPS
+    # Load model - FORCE CPU to avoid MPS deadlock
     model = AutoModelForCausalLM.from_pretrained(
         config.model_name,
         torch_dtype=torch.float32,
-        trust_remote_code=True
+        trust_remote_code=True,
+        device_map=None,  # Don't use device_map
+        low_cpu_mem_usage=False  # Load directly to CPU
     )
 
-    logger.info("✅ Model loaded")
+    # Explicitly move to CPU
+    model = model.to('cpu')
+
+    logger.info("✅ Model loaded on CPU")
     
     # Setup LoRA
     lora_config = LoraConfig(
@@ -280,8 +280,10 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, config: TrainingC
         eval_steps=config.eval_steps,
         evaluation_strategy="steps",
         save_total_limit=3,
-        fp16=False,
-        bf16=False,
+        fp16=False,  # Disable fp16 for CPU
+        bf16=False,  # Disable bf16 for CPU
+        use_cpu=True,  # FORCE CPU training
+        no_cuda=True,  # Disable CUDA
         optim="adamw_torch",
         lr_scheduler_type="cosine",
         report_to="none",
