@@ -33,6 +33,9 @@ warnings.filterwarnings("ignore")
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 
+# CRITICAL: Enable MPS fallback for Apple Silicon compatibility
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
 # ============================================================================
 # LOGGING CONFIGURATION
 # ============================================================================
@@ -266,15 +269,34 @@ class R2DataManager:
         self.config = config
         self.cache_dir = Path(config.cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Load R2 credentials
+
+        # Load R2 credentials with detailed error messages
         self.r2_account_id = os.getenv("R2_ACCOUNT_ID")
         self.r2_access_key = os.getenv("R2_ACCESS_KEY_ID")
         self.r2_secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
-        
-        if not all([self.r2_account_id, self.r2_access_key, self.r2_secret_key]):
-            raise ValueError("R2 credentials not found in environment variables")
-        
+
+        # Validate R2 credentials
+        missing_vars = []
+        if not self.r2_account_id:
+            missing_vars.append("R2_ACCOUNT_ID")
+        if not self.r2_access_key:
+            missing_vars.append("R2_ACCESS_KEY_ID")
+        if not self.r2_secret_key:
+            missing_vars.append("R2_SECRET_ACCESS_KEY")
+
+        if missing_vars:
+            error_msg = (
+                f"❌ Missing R2 environment variables: {', '.join(missing_vars)}\n"
+                f"   Set them in your environment or .env file:\n"
+                f"   export R2_ACCOUNT_ID=your_account_id\n"
+                f"   export R2_ACCESS_KEY_ID=your_access_key\n"
+                f"   export R2_SECRET_ACCESS_KEY=your_secret_key\n"
+                f"   Optional: export R2_BUCKET_NAME=your_bucket_name"
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        logger.info("✅ R2 credentials loaded successfully")
         self.client = None
 
     def _init_client(self):
@@ -389,13 +411,20 @@ class R2DataManager:
             if len(data) == 0:
                 raise ValueError("Data file is empty")
 
-            # Check first example structure
+            # Check first example structure - CRITICAL for avoiding NameError/KeyError
             first_example = data[0]
             required_fields = ['instruction', 'input', 'output']
 
             missing_fields = [f for f in required_fields if f not in first_example]
             if missing_fields:
-                logger.warning(f"⚠️  Missing fields in data: {missing_fields}")
+                error_msg = (
+                    f"❌ CRITICAL: Dataset missing required fields: {missing_fields}\n"
+                    f"   Expected schema: {{'instruction': str, 'input': str, 'output': str}}\n"
+                    f"   Found: {list(first_example.keys())}\n"
+                    f"   Run ai_training/finetuning_data_prep.py to generate correct format!"
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
             # Calculate statistics
             stats = {

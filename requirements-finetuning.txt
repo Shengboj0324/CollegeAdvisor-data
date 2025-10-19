@@ -1,4 +1,4 @@
-# Minimal requirements for fine-tuning on macOS
+# Minimal requirements for fine-tuning on macOS (Apple Silicon compatible)
 # Install with: pip install -r requirements-finetuning.txt
 
 # Core dependencies (needed for R2 download)
@@ -11,14 +11,15 @@ torch>=2.0.0
 torchvision>=0.15.0
 torchaudio>=2.0.0
 
-# Transformers and fine-tuning
-transformers>=4.30.0
+# Transformers and fine-tuning - PINNED FOR MACOS COMPATIBILITY
+transformers==4.40.2
 datasets>=2.14.0
-accelerate>=0.20.0
-peft>=0.4.0
+accelerate==0.28.0
+peft==0.11.1
 trl<0.9.0
 
-# Utilities
+# System utilities
+psutil>=5.9.0
 tqdm>=4.65.0
 numpy>=1.24.0,<2.0.0
 
