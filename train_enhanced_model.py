@@ -27,6 +27,18 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
+# CRITICAL: Prevent multiprocessing hangs on macOS
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+
+# Force spawn method for multiprocessing (safer on macOS)
+import multiprocessing
+try:
+    multiprocessing.set_start_method('spawn', force=True)
+except RuntimeError:
+    pass  # Already set
+
 # Setup logging
 log_dir = Path("logs/finetuning")
 log_dir.mkdir(parents=True, exist_ok=True)
@@ -57,7 +69,7 @@ class TrainingConfig:
     
     # Model
     model_name: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    max_seq_length: int = 1024
+    max_seq_length: int = 512  # Reduced from 1024 to prevent hangs on large datasets
     
     # LoRA
     lora_r: int = 32
@@ -277,27 +289,24 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, config: TrainingC
         warmup_steps=config.warmup_steps,
         logging_steps=config.logging_steps,
         save_steps=config.save_steps,
-        eval_steps=config.eval_steps,
-        evaluation_strategy="steps",
+        evaluation_strategy="no",  # DISABLE eval - too slow on CPU
         save_total_limit=3,
         fp16=False,  # Disable fp16 for CPU
         bf16=False,  # Disable bf16 for CPU
         use_cpu=True,  # FORCE CPU training
         no_cuda=True,  # Disable CUDA
+        dataloader_num_workers=0,  # CRITICAL: Disable multiprocessing on macOS
         optim="adamw_torch",
         lr_scheduler_type="cosine",
         report_to="none",
-        load_best_model_at_end=True,
-        metric_for_best_model="eval_loss",
-        greater_is_better=False,
+        load_best_model_at_end=False,  # Can't load best without eval
     )
     
-    # Create trainer
+    # Create trainer (no eval_dataset - eval disabled for speed)
     trainer = SFTTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
         tokenizer=tokenizer,
         formatting_func=formatting_func,
         max_seq_length=config.max_seq_length,
@@ -310,8 +319,17 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, config: TrainingC
     logger.info(f"   - Learning rate: {config.learning_rate}")
     logger.info(f"   - Train examples: {len(train_dataset)}")
     logger.info(f"   - Eval examples: {len(eval_dataset)}")
-    
+
+    # Add flush to ensure logs are written
+    import sys
+    sys.stdout.flush()
+    sys.stderr.flush()
+
     # Train
+    logger.info("📝 Calling trainer.train() - this may take a few minutes to start...")
+    sys.stdout.flush()
+    sys.stderr.flush()
+
     start_time = datetime.now()
     trainer.train()
     end_time = datetime.now()
@@ -348,6 +366,8 @@ def main():
                             help='Training batch size')
         parser.add_argument('--learning_rate', type=float, default=2e-5,
                             help='Learning rate')
+        parser.add_argument('--max_seq_length', type=int, default=512,
+                            help='Maximum sequence length (default: 512, use 1024 for longer sequences)')
 
         args = parser.parse_args()
 
@@ -360,6 +380,7 @@ def main():
             output_dir=args.output_dir,
             num_epochs=args.num_epochs,
             batch_size=args.batch_size,
+            max_seq_length=args.max_seq_length,
             learning_rate=args.learning_rate
         )
 
