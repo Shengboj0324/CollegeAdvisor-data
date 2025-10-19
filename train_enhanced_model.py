@@ -198,14 +198,13 @@ def setup_model_and_tokenizer(config: TrainingConfig):
     
     logger.info("✅ Tokenizer loaded")
     
-    # Load model
+    # Load model - FIX: Remove device_map to avoid meta device issues on MPS
     model = AutoModelForCausalLM.from_pretrained(
         config.model_name,
         torch_dtype=torch.float32,
-        device_map="auto",
         trust_remote_code=True
     )
-    
+
     logger.info("✅ Model loaded")
     
     # Setup LoRA
