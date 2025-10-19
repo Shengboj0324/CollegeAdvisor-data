@@ -332,13 +332,36 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, config: TrainingC
 
 def main():
     """Main training pipeline."""
+    import argparse
+
     try:
+        # Parse command-line arguments
+        parser = argparse.ArgumentParser(description='Fine-tune CollegeAdvisor model')
+        parser.add_argument('--dataset_path', type=str, default="data/finetuning_enhanced/instruction_dataset_alpaca.json",
+                            help='Path to training dataset')
+        parser.add_argument('--output_dir', type=str, default="collegeadvisor_enhanced_model",
+                            help='Output directory for model')
+        parser.add_argument('--num_epochs', type=int, default=3,
+                            help='Number of training epochs')
+        parser.add_argument('--batch_size', type=int, default=2,
+                            help='Training batch size')
+        parser.add_argument('--learning_rate', type=float, default=2e-5,
+                            help='Learning rate')
+
+        args = parser.parse_args()
+
         # Validate system
         device = validate_system()
-        
-        # Load configuration
-        config = TrainingConfig()
-        
+
+        # Load configuration from args
+        config = TrainingConfig(
+            dataset_path=args.dataset_path,
+            output_dir=args.output_dir,
+            num_epochs=args.num_epochs,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate
+        )
+
         # Load dataset
         train_dataset, eval_dataset = load_and_validate_dataset(config)
         
