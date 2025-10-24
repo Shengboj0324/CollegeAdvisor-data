@@ -1,20 +1,39 @@
 #!/bin/bash
 
 ################################################################################
-# END-TO-END OLLAMA FINE-TUNING PIPELINE
-# 
+# END-TO-END OLLAMA FINE-TUNING PIPELINE (macOS Optimized)
+#
 # This script runs the complete pipeline:
-# 1. Fine-tune TinyLlama with LoRA
-# 2. Convert to GGUF format
-# 3. Create Ollama Modelfile
-# 4. Import into Ollama
-# 5. Test the model
+# 1. macOS readiness checks
+# 2. Fine-tune TinyLlama with LoRA
+# 3. Convert to GGUF format
+# 4. Create Ollama Modelfile
+# 5. Import into Ollama
+# 6. Test the model
+#
+# macOS Optimizations:
+# - Prevents system sleep during training
+# - Checks power/memory/disk
+# - Uses CPU device (MPS has NaN issues)
+# - Validates NumPy compatibility
 #
 # Author: Shengbo Jiang
 # Date: 2025-10-22
 ################################################################################
 
 set -e  # Exit on error
+
+# Prevent system sleep during execution
+echo "🔒 Preventing system sleep during training..."
+caffeinate -i -w $$ &
+CAFFEINATE_PID=$!
+
+# Cleanup on exit
+cleanup() {
+    echo "🔓 Re-enabling system sleep..."
+    kill $CAFFEINATE_PID 2>/dev/null || true
+}
+trap cleanup EXIT
 
 # Colors for output
 RED='\033[0;31m'
@@ -47,6 +66,28 @@ OUTPUT_DIR="./fine_tuned_model"
 GGUF_DIR="./gguf_models"
 MODEL_NAME="college-advisor-llama"
 OLLAMA_MODEL_NAME="college-advisor:latest"
+
+################################################################################
+# PHASE 0: macOS READINESS CHECK
+################################################################################
+
+log_info "=========================================="
+log_info "PHASE 0: macOS READINESS CHECK"
+log_info "=========================================="
+
+# Run macOS-specific checks
+log_info "Running macOS readiness checks..."
+if [ -f "scripts/macos_readiness_check.py" ]; then
+    python3 scripts/macos_readiness_check.py
+    if [ $? -ne 0 ]; then
+        log_error "macOS readiness check failed"
+        log_error "Please fix the issues above before continuing"
+        exit 1
+    fi
+    log_success "macOS readiness check passed"
+else
+    log_warning "macOS readiness check script not found - skipping"
+fi
 
 ################################################################################
 # PHASE 1: ENVIRONMENT SETUP
