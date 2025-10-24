@@ -86,17 +86,26 @@ EOF
 # Pull Ollama model
 setup_ollama_model() {
     log_info "Setting up Ollama model..."
-    
+
     # Start Ollama service temporarily to pull model
     docker-compose up -d ollama
-    
+
     # Wait for Ollama to be ready
     log_info "Waiting for Ollama to be ready..."
     sleep 30
-    
-    # Pull llama3 model
-    docker-compose exec ollama ollama pull llama3
-    
+
+    # Check if fine-tuned model exists
+    FINETUNED_MODEL="college-advisor:latest"
+    if docker-compose exec ollama ollama list | grep -q "$FINETUNED_MODEL"; then
+        log_success "Fine-tuned model '$FINETUNED_MODEL' found"
+    else
+        log_warning "Fine-tuned model not found, using base llama3"
+        log_info "To use fine-tuned model, run: ./run_ollama_finetuning_pipeline.sh"
+
+        # Pull base llama3 model as fallback
+        docker-compose exec ollama ollama pull llama3
+    fi
+
     log_success "Ollama model setup complete"
 }
 

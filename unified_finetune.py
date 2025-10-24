@@ -558,11 +558,11 @@ class DataProcessor:
             if not instruction or not output:
                 continue
 
-            # Format with TinyLlama chat template
+            # Format with Llama-3 chat template (Ollama compatible)
             if input_text:
-                prompt = f"<|user|>\n{instruction}\n{input_text}</s>\n<|assistant|>\n{output}</s>"
+                prompt = f"<|start_header_id|>user<|end_header_id|>\n\n{instruction}\n{input_text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n{output}<|eot_id|>"
             else:
-                prompt = f"<|user|>\n{instruction}</s>\n<|assistant|>\n{output}</s>"
+                prompt = f"<|start_header_id|>user<|end_header_id|>\n\n{instruction}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n{output}<|eot_id|>"
 
             formatted_data.append(prompt)
 
@@ -799,6 +799,35 @@ class ModelTrainer:
             eval_dataset = eval_dataset.map(tokenize_function, batched=True, remove_columns=['text'])
             logger.info("✅ Tokenization complete")
 
+            # Custom callback for NaN detection
+            from transformers import TrainerCallback
+            import torch
+
+            class NaNDetectionCallback(TrainerCallback):
+                """Detect NaN gradients and loss during training."""
+
+                def on_log(self, args, state, control, logs=None, **kwargs):
+                    """Check for NaN in logs."""
+                    if logs:
+                        loss = logs.get('loss')
+                        if loss is not None and (torch.isnan(torch.tensor(loss)) or torch.isinf(torch.tensor(loss))):
+                            logger.error(f"❌ NaN/Inf detected in loss: {loss}")
+                            logger.error("This often happens with MPS device. Try using CPU instead.")
+                            control.should_training_stop = True
+
+                def on_step_end(self, args, state, control, **kwargs):
+                    """Check gradients for NaN."""
+                    model = kwargs.get('model')
+                    if model:
+                        for name, param in model.named_parameters():
+                            if param.grad is not None:
+                                if torch.isnan(param.grad).any() or torch.isinf(param.grad).any():
+                                    logger.error(f"❌ NaN/Inf gradient detected in {name}")
+                                    logger.error("Stopping training to prevent corruption")
+                                    control.should_training_stop = True
+                                    break
+                    return control
+
             # Create trainer
             trainer = Trainer(
                 model=self.model,
@@ -806,6 +835,7 @@ class ModelTrainer:
                 train_dataset=train_dataset,
                 eval_dataset=eval_dataset,
                 data_collator=data_collator,
+                callbacks=[NaNDetectionCallback()],
             )
 
             # Train
@@ -818,6 +848,10 @@ class ModelTrainer:
             )
             logger.info(f"   - Effective batch size: {effective_batch}")
             logger.info(f"   - Learning rate: {self.config.learning_rate}")
+            logger.info(f"   - Device: {self.config.device}")
+            if self.config.device == "mps":
+                logger.warning("⚠️  MPS device detected - may have NaN gradient issues")
+                logger.warning("⚠️  If training fails, try using --device cpu")
 
             train_result = trainer.train()
 
@@ -831,6 +865,41 @@ class ModelTrainer:
             metrics_path = output_dir / "training_metrics.json"
             with open(metrics_path, 'w') as f:
                 json.dump(metrics, f, indent=2)
+
+            # Validate model output
+            logger.info("🔍 Validating model output...")
+            try:
+                test_prompt = "<|start_header_id|>user<|end_header_id|>\n\nWhat is the admission rate at Stanford University?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+                inputs = self.tokenizer(test_prompt, return_tensors="pt")
+
+                # Move to same device as model
+                if self.config.device == "cuda":
+                    inputs = {k: v.cuda() for k, v in inputs.items()}
+                elif self.config.device == "mps":
+                    inputs = {k: v.to("mps") for k, v in inputs.items()}
+
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=50,
+                        temperature=0.7,
+                        do_sample=True
+                    )
+
+                response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                logger.info(f"✅ Model validation successful")
+                logger.info(f"   Test prompt: {test_prompt[:50]}...")
+                logger.info(f"   Response: {response[:100]}...")
+
+                # Check for NaN in output
+                if "nan" in response.lower() or len(response.strip()) == 0:
+                    logger.warning("⚠️  Model output may be corrupted")
+                else:
+                    logger.info("✅ Model output looks healthy")
+
+            except Exception as e:
+                logger.warning(f"⚠️  Model validation failed: {e}")
+                logger.warning("Model may still be usable, but check outputs carefully")
 
             logger.info("=" * 80)
             logger.info("✅ TRAINING COMPLETE")
@@ -895,6 +964,25 @@ def print_summary(config: FineTuningConfig, data_stats: Dict, quality_metrics: D
 
 def main():
     """Main execution function."""
+    import argparse
+
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Unified Fine-Tuning for College Advisor")
+    parser.add_argument("--output_dir", default="./fine_tuned_model", help="Output directory for model")
+    parser.add_argument("--num_epochs", type=int, default=3, help="Number of training epochs")
+    parser.add_argument("--batch_size", type=int, default=2, help="Training batch size")
+    parser.add_argument("--learning_rate", type=float, default=2e-5, help="Learning rate")
+    parser.add_argument("--max_seq_length", type=int, default=1024, help="Maximum sequence length")
+    parser.add_argument("--lora_r", type=int, default=32, help="LoRA rank")
+    parser.add_argument("--lora_alpha", type=int, default=64, help="LoRA alpha")
+    parser.add_argument("--lora_dropout", type=float, default=0.05, help="LoRA dropout")
+    parser.add_argument("--device", default="cpu", choices=["cpu", "cuda", "mps"], help="Device to use")
+    parser.add_argument("--save_steps", type=int, default=100, help="Save checkpoint every N steps")
+    parser.add_argument("--logging_steps", type=int, default=10, help="Log every N steps")
+    parser.add_argument("--local_data", help="Use local training data file instead of R2")
+
+    args = parser.parse_args()
+
     try:
         # Print banner
         print_banner()
@@ -907,32 +995,65 @@ def main():
 
         # Step 2: Load Configuration
         logger.info("\nSTEP 2: LOADING CONFIGURATION")
-        config = FineTuningConfig()
+        config = FineTuningConfig(
+            output_dir=args.output_dir,
+            num_train_epochs=args.num_epochs,
+            per_device_train_batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+            max_seq_length=args.max_seq_length,
+            lora_r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            device=args.device,
+            save_steps=args.save_steps,
+            logging_steps=args.logging_steps,
+        )
         logger.info(f"✅ Configuration loaded")
         logger.info(f"   - Model: {config.model_name}")
         logger.info(f"   - Output: {config.output_dir}")
+        logger.info(f"   - Device: {config.device}")
 
-        # Step 3: Fetch Training Data from R2
+        # Step 3: Fetch Training Data
         logger.info("\nSTEP 3: FETCHING TRAINING DATA")
-        r2_manager = R2DataManager(config)
 
-        # List available datasets
-        available_datasets = r2_manager.list_available_datasets()
+        if args.local_data:
+            # Use local data file
+            logger.info(f"📂 Using local data file: {args.local_data}")
+            data_file = Path(args.local_data)
+            if not data_file.exists():
+                logger.error(f"Local data file not found: {data_file}")
+                sys.exit(1)
 
-        # Use the first available dataset or default
-        dataset_name = "instruction_dataset_alpaca.json"
-        if available_datasets:
-            # Prefer alpaca format
-            alpaca_datasets = [d for d in available_datasets if 'alpaca' in d.lower()]
-            if alpaca_datasets:
-                dataset_name = Path(alpaca_datasets[0]).name
-            else:
-                dataset_name = Path(available_datasets[0]).name
+            # Calculate stats
+            import json
+            with open(data_file, 'r') as f:
+                data = json.load(f)
+            data_stats = {
+                'total_examples': len(data),
+                'source': 'local',
+                'file': str(data_file)
+            }
+        else:
+            # Fetch from R2
+            r2_manager = R2DataManager(config)
 
-        logger.info(f"📥 Using dataset: {dataset_name}")
+            # List available datasets
+            available_datasets = r2_manager.list_available_datasets()
 
-        # Fetch data
-        data_file, data_stats = r2_manager.fetch_training_data(dataset_name)
+            # Use the first available dataset or default
+            dataset_name = "instruction_dataset_alpaca.json"
+            if available_datasets:
+                # Prefer alpaca format
+                alpaca_datasets = [d for d in available_datasets if 'alpaca' in d.lower()]
+                if alpaca_datasets:
+                    dataset_name = Path(alpaca_datasets[0]).name
+                else:
+                    dataset_name = Path(available_datasets[0]).name
+
+            logger.info(f"📥 Using dataset: {dataset_name}")
+
+            # Fetch data
+            data_file, data_stats = r2_manager.fetch_training_data(dataset_name)
 
         # Step 4: Process Data
         logger.info("\nSTEP 4: PROCESSING DATA")

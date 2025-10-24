@@ -51,8 +51,77 @@ class OllamaExporter:
         except Exception as e:
             logger.warning(f"S3 not available: {e}")
     
-    def convert_to_gguf(self, 
-                       model_path: str, 
+    def merge_lora_and_convert(self,
+                              base_model: str,
+                              lora_path: str,
+                              output_path: str,
+                              quantization: str = "q4_k_m") -> str:
+        """
+        Merge LoRA adapter with base model and convert to GGUF format.
+
+        Args:
+            base_model: Base model name or path (e.g., 'TinyLlama/TinyLlama-1.1B-Chat-v1.0')
+            lora_path: Path to LoRA adapter weights
+            output_path: Output directory for GGUF file
+            quantization: Quantization method (q4_k_m, q5_k_m, q8_0, etc.)
+
+        Returns:
+            Path to generated GGUF file
+        """
+        logger.info(f"Merging LoRA adapter and converting to GGUF...")
+        logger.info(f"  Base model: {base_model}")
+        logger.info(f"  LoRA path: {lora_path}")
+        logger.info(f"  Output: {output_path}")
+        logger.info(f"  Quantization: {quantization}")
+
+        os.makedirs(output_path, exist_ok=True)
+
+        # Step 1: Merge LoRA with base model
+        merged_model_path = os.path.join(output_path, "merged_model")
+        logger.info("Step 1: Merging LoRA adapter with base model...")
+
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            from peft import PeftModel
+            import torch
+
+            # Load base model
+            logger.info(f"Loading base model: {base_model}")
+            base_model_obj = AutoModelForCausalLM.from_pretrained(
+                base_model,
+                torch_dtype=torch.float16,
+                device_map="cpu",
+                low_cpu_mem_usage=True
+            )
+
+            # Load LoRA adapter
+            logger.info(f"Loading LoRA adapter: {lora_path}")
+            model = PeftModel.from_pretrained(base_model_obj, lora_path)
+
+            # Merge and unload
+            logger.info("Merging LoRA weights...")
+            model = model.merge_and_unload()
+
+            # Save merged model
+            logger.info(f"Saving merged model to: {merged_model_path}")
+            os.makedirs(merged_model_path, exist_ok=True)
+            model.save_pretrained(merged_model_path)
+
+            # Save tokenizer
+            tokenizer = AutoTokenizer.from_pretrained(base_model)
+            tokenizer.save_pretrained(merged_model_path)
+
+            logger.info("✅ LoRA merge complete")
+
+        except Exception as e:
+            logger.error(f"Failed to merge LoRA: {e}")
+            raise
+
+        # Step 2: Convert to GGUF
+        return self.convert_to_gguf(merged_model_path, output_path, quantization)
+
+    def convert_to_gguf(self,
+                       model_path: str,
                        output_path: str,
                        quantization: str = "q4_k_m") -> str:
         """
@@ -355,50 +424,106 @@ TEMPLATE \"\"\"{{{{ if .System }}}}<|start_header_id|>system<|end_header_id|>
 def main():
     """Main export script."""
     parser = argparse.ArgumentParser(description="Export trained model to Ollama format")
-    parser.add_argument("--model", required=True, help="Path to trained HuggingFace model")
-    parser.add_argument("--output", required=True, help="Output directory for exported model")
-    parser.add_argument("--name", help="Model name for deployment")
+    parser.add_argument("--model_path", help="Path to trained HuggingFace model (for full model)")
+    parser.add_argument("--lora_path", help="Path to LoRA adapter (for LoRA fine-tuned model)")
+    parser.add_argument("--base_model", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+                       help="Base model name (required if using --lora_path)")
+    parser.add_argument("--output_dir", required=True, help="Output directory for exported model")
+    parser.add_argument("--model_name", help="Model name for deployment")
     parser.add_argument("--no-s3", action="store_true", help="Skip S3 upload")
     parser.add_argument("--quantization", default="q4_k_m", help="GGUF quantization level")
-    
+
     args = parser.parse_args()
-    
+
+    # Validate arguments
+    if not args.model_path and not args.lora_path:
+        parser.error("Either --model_path or --lora_path must be specified")
+
+    if args.lora_path and not args.base_model:
+        parser.error("--base_model is required when using --lora_path")
+
     # Setup logging
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
+
     try:
         # Initialize exporter
         exporter = OllamaExporter()
-        
-        # Export model
-        result = exporter.export_model(
-            model_path=args.model,
-            output_dir=args.output,
-            model_name=args.name,
-            upload_to_s3=not args.no_s3
-        )
-        
-        if result["success"]:
-            print(f"✅ Model export completed successfully!")
-            print(f"   Model name: {result['model_name']}")
-            print(f"   Output directory: {result['output_dir']}")
-            print(f"   GGUF file: {result['gguf_path']}")
-            print(f"   Modelfile: {result['modelfile_path']}")
-            
-            if result.get("s3_urls"):
-                print(f"   S3 uploads: {len(result['s3_urls'])} files")
+
+        # Determine model name
+        model_name = args.model_name or f"college-advisor-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+        output_path = Path(args.output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        # Convert to GGUF
+        if args.lora_path:
+            # LoRA mode: merge and convert
+            logger.info("Mode: LoRA adapter merge and convert")
+            gguf_path = exporter.merge_lora_and_convert(
+                base_model=args.base_model,
+                lora_path=args.lora_path,
+                output_path=str(output_path / "gguf"),
+                quantization=args.quantization
+            )
         else:
-            print(f"❌ Model export failed: {result['error']}")
-            return 1
-        
+            # Full model mode: direct convert
+            logger.info("Mode: Full model convert")
+            gguf_path = exporter.convert_to_gguf(
+                model_path=args.model_path,
+                output_path=str(output_path / "gguf"),
+                quantization=args.quantization
+            )
+
+        # Create Modelfile
+        modelfile_path = exporter.create_modelfile(
+            gguf_path=gguf_path,
+            output_dir=str(output_path),
+            model_name=model_name
+        )
+
+        # Create deployment metadata
+        metadata = {
+            "model_name": model_name,
+            "export_timestamp": datetime.now().isoformat(),
+            "mode": "lora" if args.lora_path else "full",
+            "base_model": args.base_model if args.lora_path else args.model_path,
+            "lora_path": args.lora_path if args.lora_path else None,
+            "gguf_path": gguf_path,
+            "modelfile_path": modelfile_path,
+            "quantization": args.quantization,
+            "deployment_ready": True
+        }
+
+        metadata_path = output_path / "deployment_metadata.json"
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+        logger.info(f"✅ Export completed successfully!")
+        print(f"\n{'='*60}")
+        print(f"✅ MODEL EXPORT COMPLETE")
+        print(f"{'='*60}")
+        print(f"Model name:     {model_name}")
+        print(f"Output dir:     {output_path}")
+        print(f"GGUF file:      {gguf_path}")
+        print(f"Modelfile:      {modelfile_path}")
+        print(f"Metadata:       {metadata_path}")
+        print(f"{'='*60}")
+        print(f"\nTo import into Ollama:")
+        print(f"  ollama create {model_name} -f {modelfile_path}")
+        print(f"\nTo test the model:")
+        print(f"  ollama run {model_name}")
+        print(f"{'='*60}\n")
+
     except Exception as e:
         logger.error(f"Export failed: {e}")
         print(f"❌ Export failed: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
-    
+
     return 0
 
 
