@@ -103,11 +103,23 @@ PYTHON_CMD=$(which python3 || which python)
 PYTHON_VER=$($PYTHON_CMD --version 2>&1 | awk '{print $2}')
 log_info "Found Python $PYTHON_VER"
 
-# Activate virtual environment
+# Check for corrupted virtual environment
+if [ -d "$VENV_DIR" ]; then
+    log_info "Checking virtual environment integrity..."
+    if ! source $VENV_DIR/bin/activate 2>/dev/null || ! pip --version &>/dev/null; then
+        log_warning "Virtual environment appears corrupted"
+        log_info "Removing corrupted venv..."
+        rm -rf $VENV_DIR
+    else
+        deactivate 2>/dev/null || true
+    fi
+fi
+
+# Create virtual environment if needed
 if [ ! -d "$VENV_DIR" ]; then
-    log_error "Virtual environment not found at $VENV_DIR"
-    log_info "Creating virtual environment..."
+    log_info "Creating fresh virtual environment..."
     $PYTHON_CMD -m venv $VENV_DIR
+    log_success "Virtual environment created"
 fi
 
 log_info "Activating virtual environment..."
@@ -116,8 +128,20 @@ source $VENV_DIR/bin/activate
 # Install dependencies
 log_info "Installing dependencies..."
 if [ -f "requirements-finetuning.txt" ]; then
+    log_info "Upgrading pip..."
     pip install --quiet --upgrade pip
-    pip install --quiet -r requirements-finetuning.txt
+
+    log_info "Installing packages (this may take a few minutes)..."
+    if pip install -r requirements-finetuning.txt 2>&1 | tee /tmp/pip_install.log | grep -i "error"; then
+        log_error "Dependency installation failed"
+        log_info "Check /tmp/pip_install.log for details"
+
+        # Try to fix common issues
+        log_warning "Attempting to fix corrupted packages..."
+        pip install --force-reinstall typing-extensions
+        pip install -r requirements-finetuning.txt
+    fi
+
     log_success "Dependencies installed"
 else
     log_error "requirements-finetuning.txt not found"
