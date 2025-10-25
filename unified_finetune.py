@@ -107,7 +107,10 @@ class FineTuningConfig:
     # Output
     output_dir: str = "collegeadvisor_unified_model"
     seed: int = 42
-    
+
+    # Device Configuration
+    device: str = "cpu"  # cpu, cuda, or mps
+
     # Data Configuration
     train_split: float = 0.9
     eval_split: float = 0.1

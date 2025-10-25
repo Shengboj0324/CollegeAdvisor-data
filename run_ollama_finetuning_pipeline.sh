@@ -228,7 +228,8 @@ python3 unified_finetune.py \
     --lora_dropout 0.05 \
     --device cpu \
     --save_steps 100 \
-    --logging_steps 10
+    --logging_steps 10 \
+    --local_data training_data_alpaca.json
 
 if [ $? -ne 0 ]; then
     log_error "Fine-tuning failed"
