@@ -150,15 +150,95 @@ class OllamaExporter:
         gguf_path = output_dir / gguf_filename
         
         try:
-            # Use llama.cpp's convert script
-            # This assumes llama.cpp is installed and available
+            # CRITICAL FIX: Check if this is a LoRA adapter or full model
+            adapter_config_path = model_dir / "adapter_config.json"
+            is_lora_adapter = adapter_config_path.exists()
+
+            if is_lora_adapter:
+                logger.info("Detected LoRA adapter - merging with base model first...")
+                # Merge LoRA adapter with base model
+                merged_model_dir = output_dir / f"{model_name}_merged"
+                merged_model_dir.mkdir(parents=True, exist_ok=True)
+
+                # Load adapter config to get base model
+                with open(adapter_config_path, 'r') as f:
+                    adapter_config = json.load(f)
+                base_model_name = adapter_config.get('base_model_name_or_path', 'TinyLlama/TinyLlama-1.1B-Chat-v1.0')
+
+                logger.info(f"Base model: {base_model_name}")
+                logger.info("Loading base model and merging LoRA adapter...")
+
+                from transformers import AutoModelForCausalLM, AutoTokenizer
+                from peft import PeftModel
+                import torch
+
+                # Load base model
+                base_model = AutoModelForCausalLM.from_pretrained(
+                    base_model_name,
+                    torch_dtype=torch.float16,
+                    device_map="cpu"
+                )
+
+                # Load LoRA adapter
+                model = PeftModel.from_pretrained(base_model, str(model_dir))
+
+                # Merge and unload
+                logger.info("Merging LoRA weights into base model...")
+                model = model.merge_and_unload()
+
+                # Save merged model
+                logger.info(f"Saving merged model to {merged_model_dir}...")
+                model.save_pretrained(str(merged_model_dir))
+
+                # Save tokenizer
+                tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
+                tokenizer.save_pretrained(str(merged_model_dir))
+
+                logger.info("✅ LoRA adapter merged successfully")
+
+                # Update model_dir to point to merged model
+                model_dir = merged_model_dir
+
+                # Clean up
+                del model
+                del base_model
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+            # CRITICAL FIX: Use llama.cpp repository's convert script
+            # First, check if llama.cpp is cloned, if not clone it
+            llama_cpp_dir = Path("llama.cpp")
+
+            if not llama_cpp_dir.exists():
+                logger.info("Cloning llama.cpp repository...")
+                clone_cmd = [
+                    "git", "clone",
+                    "https://github.com/ggerganov/llama.cpp.git",
+                    str(llama_cpp_dir)
+                ]
+                subprocess.run(clone_cmd, check=True, capture_output=True)
+                logger.info("✅ llama.cpp cloned successfully")
+
+            # Use the convert_hf_to_gguf.py script from llama.cpp
+            convert_script = llama_cpp_dir / "convert_hf_to_gguf.py"
+
+            if not convert_script.exists():
+                # Try older naming convention
+                convert_script = llama_cpp_dir / "convert.py"
+
+            if not convert_script.exists():
+                raise FileNotFoundError(f"Cannot find convert script in llama.cpp. Checked: {llama_cpp_dir / 'convert_hf_to_gguf.py'}")
+
+            # First convert to F16 GGUF
+            f16_gguf_path = output_dir / f"{model_name}-f16.gguf"
+
             convert_cmd = [
-                "python", "-m", "llama_cpp.convert",
+                "python", str(convert_script),
                 str(model_dir),
-                "--outfile", str(gguf_path),
-                "--outtype", quantization
+                "--outfile", str(f16_gguf_path),
+                "--outtype", "f16"
             ]
-            
+
             logger.info(f"Running conversion: {' '.join(convert_cmd)}")
             result = subprocess.run(
                 convert_cmd,
@@ -166,19 +246,61 @@ class OllamaExporter:
                 text=True,
                 check=True
             )
-            
-            if gguf_path.exists():
-                logger.info(f"GGUF conversion successful: {gguf_path}")
-                return str(gguf_path)
+
+            if not f16_gguf_path.exists():
+                raise RuntimeError("F16 GGUF file not created")
+
+            logger.info(f"✅ F16 GGUF created: {f16_gguf_path}")
+
+            # Now quantize to the desired format
+            if quantization != "f16":
+                quantize_script = llama_cpp_dir / "quantize"
+
+                # Build quantize if it doesn't exist
+                if not quantize_script.exists():
+                    logger.info("Building llama.cpp quantize tool...")
+                    build_cmd = ["make", "quantize"]
+                    subprocess.run(
+                        build_cmd,
+                        cwd=str(llama_cpp_dir),
+                        check=True,
+                        capture_output=True
+                    )
+
+                # Quantize the model
+                quantize_cmd = [
+                    str(quantize_script),
+                    str(f16_gguf_path),
+                    str(gguf_path),
+                    quantization
+                ]
+
+                logger.info(f"Running quantization: {' '.join(quantize_cmd)}")
+                result = subprocess.run(
+                    quantize_cmd,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+
+                if gguf_path.exists():
+                    logger.info(f"✅ GGUF quantization successful: {gguf_path}")
+                    # Remove F16 intermediate file
+                    f16_gguf_path.unlink()
+                    return str(gguf_path)
+                else:
+                    raise RuntimeError("Quantized GGUF file not created")
             else:
-                raise RuntimeError("GGUF file not created")
-                
+                # F16 is the final format
+                return str(f16_gguf_path)
+
         except subprocess.CalledProcessError as e:
             logger.error(f"GGUF conversion failed: {e.stderr}")
             raise
-        except FileNotFoundError:
+        except Exception as e:
             # Fallback: try alternative conversion methods
-            logger.warning("llama.cpp not found, trying alternative conversion...")
+            logger.warning(f"llama.cpp conversion failed: {e}")
+            logger.warning("Trying alternative conversion...")
             return self._convert_with_transformers(model_path, gguf_path)
     
     def _convert_with_transformers(self, model_path: str, gguf_path: Path) -> str:

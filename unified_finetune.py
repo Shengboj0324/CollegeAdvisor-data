@@ -641,7 +641,9 @@ class ModelTrainer:
         self.config = config
         self.model = None
         self.tokenizer = None
-        self.device = SystemValidator.detect_device()
+        # CRITICAL FIX: Use config.device instead of auto-detection
+        # Auto-detection was causing device mismatch (model on MPS, training on CPU)
+        self.device = config.device if config.device else SystemValidator.detect_device()
 
     def load_model_and_tokenizer(self):
         """Load base model and tokenizer with LoRA configuration."""
@@ -709,6 +711,15 @@ class ModelTrainer:
             # Apply LoRA
             self.model = get_peft_model(self.model, lora_config)
 
+            # CRITICAL FIX: Move model to correct device AFTER LoRA application
+            # PEFT might reset device, so we need to ensure it's on the right device
+            if self.device == "mps":
+                self.model = self.model.to("mps")
+            elif self.device == "cpu":
+                self.model = self.model.to("cpu")
+            elif self.device == "cuda":
+                self.model = self.model.to("cuda")
+
             # Print trainable parameters
             trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
             total_params = sum(p.numel() for p in self.model.parameters())
@@ -718,6 +729,7 @@ class ModelTrainer:
             logger.info(f"   - Trainable params: {trainable_params:,}")
             logger.info(f"   - Total params: {total_params:,}")
             logger.info(f"   - Trainable: {trainable_percent:.2f}%")
+            logger.info(f"   - Model device: {next(self.model.parameters()).device}")
 
             logger.info("=" * 80)
             logger.info("✅ MODEL LOADING COMPLETE")
@@ -773,28 +785,40 @@ class ModelTrainer:
                 evaluation_strategy=self.config.evaluation_strategy,
                 save_total_limit=self.config.save_total_limit,
 
+                # Device Configuration - CRITICAL FIX
+                # Force CPU when config.device is "cpu" to prevent device mismatch
+                no_cuda=(self.config.device == "cpu"),
+                use_mps_device=(self.config.device == "mps"),
+
                 # Other
                 report_to="none",
                 seed=self.config.seed,
                 remove_unused_columns=False,
                 push_to_hub=False,
-                load_best_model_at_end=True,
+                load_best_model_at_end=False,  # CRITICAL FIX: Disable to avoid hanging
                 metric_for_best_model="eval_loss",
+                disable_tqdm=False,  # Show progress bars
+                logging_first_step=True,  # Log the first step immediately
             )
 
-            # Data collator
+            # Data collator with dynamic padding
+            # CRITICAL FIX: Use dynamic padding to pad only to the longest sequence in each batch
+            # This dramatically reduces computation compared to padding everything to max_length
             data_collator = DataCollatorForLanguageModeling(
                 tokenizer=self.tokenizer,
-                mlm=False
+                mlm=False,
+                # Dynamic padding - pads to longest sequence in batch, not max_length
             )
 
             # Tokenize datasets
+            # CRITICAL FIX: Don't pad during tokenization - let DataCollator handle it dynamically
+            # padding='max_length' was causing massive computational waste (padding to 1024 for all examples)
             def tokenize_function(examples):
                 return self.tokenizer(
                     examples['text'],
                     truncation=True,
                     max_length=self.config.max_seq_length,
-                    padding='max_length'
+                    # NO PADDING HERE - DataCollator will pad dynamically to batch max length
                 )
 
             logger.info("🔄 Tokenizing datasets...")
@@ -832,6 +856,7 @@ class ModelTrainer:
                     return control
 
             # Create trainer
+            logger.info("📦 Creating Trainer...")
             trainer = Trainer(
                 model=self.model,
                 args=training_args,
@@ -840,9 +865,10 @@ class ModelTrainer:
                 data_collator=data_collator,
                 callbacks=[NaNDetectionCallback()],
             )
+            logger.info("✅ Trainer created successfully")
 
             # Train
-            logger.info("🚀 Training started...")
+            logger.info("🚀 Starting training loop...")
             logger.info(f"   - Epochs: {self.config.num_train_epochs}")
             logger.info(f"   - Batch size: {self.config.per_device_train_batch_size}")
             logger.info(f"   - Gradient accumulation: {self.config.gradient_accumulation_steps}")
@@ -852,11 +878,14 @@ class ModelTrainer:
             logger.info(f"   - Effective batch size: {effective_batch}")
             logger.info(f"   - Learning rate: {self.config.learning_rate}")
             logger.info(f"   - Device: {self.config.device}")
+            logger.info(f"   - Total steps: {len(train_dataset) // effective_batch * self.config.num_train_epochs}")
             if self.config.device == "mps":
                 logger.warning("⚠️  MPS device detected - may have NaN gradient issues")
                 logger.warning("⚠️  If training fails, try using --device cpu")
 
+            logger.info("⏳ Calling trainer.train() - this may take a few minutes to start...")
             train_result = trainer.train()
+            logger.info("✅ Training completed!")
 
             # Save final model
             logger.info("💾 Saving final model...")

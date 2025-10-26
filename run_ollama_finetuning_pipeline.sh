@@ -220,9 +220,9 @@ log_warning "This may take 30-60 minutes depending on your hardware"
 python3 unified_finetune.py \
     --output_dir "$OUTPUT_DIR" \
     --num_epochs 3 \
-    --batch_size 2 \
+    --batch_size 4 \
     --learning_rate 2e-5 \
-    --max_seq_length 1024 \
+    --max_seq_length 128 \
     --lora_r 32 \
     --lora_alpha 64 \
     --lora_dropout 0.05 \
