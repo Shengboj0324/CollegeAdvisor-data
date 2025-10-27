@@ -117,7 +117,44 @@ def create_document_text(record: Dict, record_type: str) -> str:
     elif record_type == "cited_answer":
         question = record.get("question", "")
         return f"Q: {question}"
-        
+
+    elif record_type == "ncaa":
+        policy = record.get("policy_name", "")
+        description = record.get("description", "")
+        return f"NCAA | {policy} | {description}"
+
+    elif record_type == "bankruptcy":
+        policy = record.get("policy_name", "")
+        description = record.get("description", "")
+        school = record.get("school_name", "")
+        if school:
+            return f"{school} | {policy} | {description}"
+        return f"Financial Aid | {policy} | {description}"
+
+    elif record_type == "religious":
+        school = record.get("school_name", "")
+        policy = record.get("policy_name", "")
+        description = record.get("description", "")
+        if school:
+            return f"{school} | {policy} | {description}"
+        return f"Religious Accommodation | {policy} | {description}"
+
+    elif record_type == "transfer_credit":
+        school = record.get("school_name", "")
+        policy = record.get("policy_name", "")
+        description = record.get("description", "")
+        if school:
+            return f"{school} | {policy} | {description}"
+        return f"Transfer Credit | {policy} | {description}"
+
+    elif record_type in ["military", "tribal", "daca", "foster", "disability"]:
+        policy = record.get("policy_name", "")
+        description = record.get("description", "")
+        school = record.get("school_name", "")
+        if school:
+            return f"{school} | {policy} | {description}"
+        return f"{record_type.title()} | {policy} | {description}"
+
     else:
         return json.dumps(record)
 
@@ -219,9 +256,13 @@ def main():
                 "training_data/tier0_policy_rules/UndocumentedDACAPolicy.jsonl",
                 "training_data/tier0_policy_rules/FosterCarePolicy.jsonl",
                 "training_data/tier0_policy_rules/DisabilityAccommodations.jsonl",
+                "training_data/tier0_policy_rules/NCAAEligibilityRules.jsonl",
+                "training_data/tier0_policy_rules/ProfessionalJudgmentBankruptcy.jsonl",
+                "training_data/tier0_policy_rules/ReligiousAccommodations.jsonl",
+                "training_data/tier0_policy_rules/InternationalTransferCredit.jsonl",
             ],
             "collection": "major_gates",
-            "record_types": ["major_gate", "residency", "bsmd", "visa", "admit_rate", "military", "tribal", "daca", "foster", "disability"]
+            "record_types": ["major_gate", "residency", "bsmd", "visa", "admit_rate", "military", "tribal", "daca", "foster", "disability", "ncaa", "bankruptcy", "religious", "transfer_credit"]
         },
         # CDS data collection
         {
