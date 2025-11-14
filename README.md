@@ -551,29 +551,4 @@ System deployed on Google Cloud Run, integrated with iOS application, serving re
 [14] Robertson, S., & Zaragoza, H. (2009). The Probabilistic Relevance Framework: BM25 and Beyond. Foundations and Trends in Information Retrieval.
 [15] Thakur, N., et al. (2021). BEIR: A Heterogeneous Benchmark for Zero-shot Evaluation of Information Retrieval Models. NeurIPS.
 
----
-
-## Appendix: System Specifications
-
-**Knowledge Base**: 1,910 documents, 384-dimensional embeddings
-**Retrieval**: Hybrid (BM25 + dense vectors), authority-weighted
-**Synthesis**: 20+ specialized handlers, priority-based routing
-**Generation**: TinyLlama-1.1B via Ollama
-**Deployment**: Google Cloud Run, 4GB RAM, 2 vCPU
-**Performance**: 10.0/10.0 score, 100% citation coverage, 0% fabrication
-**Latency**: 2-3.5 seconds (P50-P95)
-**Cost**: $200/month for 10,000 queries
-
-**Code Repository**: `/Users/jiangshengbo/Desktop/CollegeAdvisor-data`
-**Production Artifacts**: `collegeadvisor-v1.0.0.tar.gz` (3.0 MB)
-**Version**: 1.0.0
-**Status**: Production Deployment Ready ✅
-
----
-
-**Author**: Shengbo Jiang
-**Institution**: CollegeAdvisor Research
-**Contact**: [Your Contact Information]
-**Date**: October 2025
-**License**: Proprietary
-
+--
