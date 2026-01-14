@@ -67,10 +67,19 @@ data/processed/
 cache/
 logs/
 *.csv
-*.json
 *.parquet
 *.pkl
 *.pickle
+
+# Test and log files (root directory only)
+/*.log
+/*_test.py
+/test_*.py
+/*test*.json
+/*results*.json
+/*.backup*
+/test_medium_output/
+/export_log.txt
 
 # Model files
 models/
